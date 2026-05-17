@@ -399,10 +399,21 @@ export default function ScanDetails() {
         <div className="mb-8 rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-                {t.navigator}
-              </p>
-              <h1 className="mt-1 text-2xl font-bold text-white">{data.plant_name} {t.intelligenceReport}</h1>
+              <h1 className="mt-1 text-2xl font-bold text-white flex items-center gap-3 flex-wrap">
+                <span>{data.plant_name} {t.intelligenceReport}</span>
+                <button
+                  onClick={speakAdvice}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-black transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] ${
+                    isSpeaking 
+                      ? 'bg-red-500 border-red-400 text-white animate-pulse'
+                      : 'bg-emerald-500 border-emerald-400 text-zinc-950 hover:bg-emerald-400 hover:scale-105 active:scale-95'
+                  }`}
+                  title={lang === 'en' ? 'Narrate Report' : 'Sikiliza Ripoti'}
+                >
+                  {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  <span>{isSpeaking ? (lang === 'en' ? 'Stop Audio' : 'Zima Sauti') : (lang === 'en' ? '🔊 Read Aloud' : '🔊 Sikiliza Ripoti')}</span>
+                </button>
+              </h1>
               <p className="mt-1 text-sm text-zinc-500">
                 {t.jumpDesc}
               </p>
