@@ -201,6 +201,48 @@ export default function ScanDetails() {
               </div>
             </motion.div>
 
+            {/* Medicine Advice Card */}
+            <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-emerald-950/10">
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                <ShieldCheck className="w-24 h-24 text-emerald-400" />
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                  <Droplet className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">Recommended Treatment</h3>
+                  <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Prescription</p>
+                </div>
+              </div>
+
+              <div className="text-sm text-zinc-300 leading-relaxed mb-6">
+                {treatmentNeeded === 'fungicide' && (
+                  <p>
+                    Apply a systemic, broad-spectrum fungicide containing <strong className="text-emerald-400">Metalaxyl-M</strong> or a protective cover of <strong className="text-emerald-400">Mancozeb 80% WP</strong>. Dilute at 50g per 20L of water and spray thoroughly on leaf surfaces. Repeat every 7-10 days depending on weather humidity.
+                  </p>
+                )}
+                {treatmentNeeded === 'insecticide' && (
+                  <p>
+                    Apply a premium insecticide containing <strong className="text-emerald-400">Emamectin Benzoate 5% SG</strong> or <strong className="text-emerald-400">Chlorantraniliprole</strong>. Direct the spray into the plant whorl where caterpillars hide. Apply early morning or late evening.
+                  </p>
+                )}
+                {treatmentNeeded === 'copper oxychloride' && (
+                  <p>
+                    Treat with a preventive bactericide/fungicide containing <strong className="text-emerald-400">Copper Oxychloride 50% WP</strong>. Ensure full canopy spray coverage. Avoid application under high temperature conditions to prevent phytotoxicity.
+                  </p>
+                )}
+              </div>
+
+              <a 
+                href="#agrovets"
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
+              >
+                <Sprout className="w-4 h-4" />
+                Purchase Now
+              </a>
+            </motion.div>
+
           </div>
 
           {/* Right Column: Detailed Analysis */}
