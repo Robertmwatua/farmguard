@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [scans, setScans] = useState<any[]>([])
   const [latestScanId, setLatestScanId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Language & Theme states
@@ -624,38 +625,47 @@ export default function Dashboard() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
 
-            <Link href="/teachings" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Academy' : 'Chuo'}
-            </Link>
+            {/* Desktop Navigation Links - hidden on mobile/tablet */}
+            <div className="hidden lg:flex items-center gap-1">
+              <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Academy' : 'Chuo'}
+              </Link>
 
-            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Community' : 'Jamii'}
-            </Link>
+              <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Community' : 'Jamii'}
+              </Link>
 
-            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Calendar' : 'Ratiba'}
-            </Link>
+              <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Calendar' : 'Ratiba'}
+              </Link>
 
-            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Diary' : 'Shajara'}
-            </Link>
+              <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Diary' : 'Shajara'}
+              </Link>
 
-            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-            </Link>
+              <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+              </Link>
 
-            <Link href="/marketplace" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {lang === 'en' ? 'Marketplace' : 'Soko'}
-            </Link>
+              <Link href="/marketplace" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Marketplace' : 'Soko'}
+              </Link>
 
-            <Link href="/agrovets" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
-              {t.agrovetConsole.split(' ')[0]}
-            </Link>
+              <Link href="/agrovets" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {t.agrovetConsole.split(' ')[0]}
+              </Link>
+            </div>
 
-            <button className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white transition-all">
-              <Menu className="w-5 h-5" />
+            {/* Mobile Menu Toggle Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:border-emerald-500/30 transition-all"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
+            {/* Desktop Sign Out Button */}
             <button
               onClick={handleSignOut}
               className="hidden lg:flex p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all items-center gap-2"
@@ -665,6 +675,90 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="lg:hidden border-t border-zinc-800/50 bg-zinc-950/95 backdrop-blur-md"
+            >
+              <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col gap-1">
+                <Link
+                  href="/teachings"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Academy' : 'Chuo'}
+                </Link>
+
+                <Link
+                  href="/community"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Community' : 'Jamii'}
+                </Link>
+
+                <Link
+                  href="/calendar"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Calendar' : 'Ratiba'}
+                </Link>
+
+                <Link
+                  href="/notes"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Diary' : 'Shajara'}
+                </Link>
+
+                <Link
+                  href="/estimator"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+                </Link>
+
+                <Link
+                  href="/marketplace"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Marketplace' : 'Soko'}
+                </Link>
+
+                <Link
+                  href="/agrovets"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t.agrovetConsole.split(' ')[0]}
+                </Link>
+
+                <div className="border-t border-zinc-800/50 my-2" />
+
+                <button
+                  onClick={() => {
+                    handleSignOut()
+                    setIsMobileMenuOpen(false)
+                  }}
+                  className="flex items-center gap-2 text-sm font-semibold text-red-400 hover:text-red-300 transition-colors px-3 py-3 rounded-lg hover:bg-red-500/10"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {t.signOut}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 overflow-x-hidden">

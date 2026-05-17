@@ -23,13 +23,15 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  X,
   Lightbulb,
   Sprout,
   Droplets,
   Bug,
   Activity,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Menu
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
@@ -254,6 +256,7 @@ export default function TeachingsPage() {
   const [lang, setLang] = useState<'en' | 'sw'>('en')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Quiz states
   const [quizActive, setQuizActive] = useState(false)
@@ -362,11 +365,10 @@ export default function TeachingsPage() {
 
       const payload = await res.json()
       setChatMessages(prev => [...prev, { role: 'bot', content: payload.content }])
-    } catch (err: any) {
-      setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? `Error: ${err.message}. Please try again.` : `Hitilafu: ${err.message}. Tafadhali jaribu tena.` }])
-    } finally {
-      setChatLoading(false)
-    }
+     } catch (err: any) {
+       const errorMessage = err.message || 'Unknown error';
+       setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? `Error: ${errorMessage}. Please try again.` : `Hitilafu: ${errorMessage}. Tafadhali jaribu tena.` }])
+     }
   }
 
   // Voice speech dictation inside teachings
@@ -502,7 +504,7 @@ export default function TeachingsPage() {
             <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
               <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">{t.backToDashboard}</span>
             </Link>
-            <div className="w-px h-6 bg-zinc-800" />
+            <div className="w-px h-6 bg-zinc-800 hidden sm:block" />
             <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
               <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
                 <BookOpen className="w-4 h-4 text-emerald-400" />
@@ -511,36 +513,33 @@ export default function TeachingsPage() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Community' : 'Jamii'}
-            </Link>
+          <div className="flex items-center gap-2">
+            {/* Desktop Navigation Links */}
+            <div className="hidden lg:flex items-center gap-1">
+              <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Community' : 'Jamii'}
+              </Link>
 
-            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Calendar' : 'Ratiba'}
-            </Link>
+              <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Calendar' : 'Ratiba'}
+              </Link>
 
-            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Diary' : 'Shajara'}
-            </Link>
+              <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Diary' : 'Shajara'}
+              </Link>
 
-            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-            </Link>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleLang}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
-              >
-                <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-              </button>
-
-              <button className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white transition-all">
-                <Menu className="w-4 h-4" />
-              </button>
+              <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
+                {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+              </Link>
             </div>
+
+            <button
+              onClick={toggleLang}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
+            </button>
 
             <button
               onClick={toggleTheme}
@@ -548,8 +547,80 @@ export default function TeachingsPage() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
+
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:border-emerald-500/30 transition-all"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="lg:hidden border-t border-zinc-800/50 bg-zinc-950/95 backdrop-blur-md"
+            >
+              <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col gap-1">
+                <Link
+                  href="/community"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Community' : 'Jamii'}
+                </Link>
+
+                <Link
+                  href="/calendar"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Calendar' : 'Ratiba'}
+                </Link>
+
+                <Link
+                  href="/notes"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Diary' : 'Shajara'}
+                </Link>
+
+                <Link
+                  href="/estimator"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+                </Link>
+
+                <Link
+                  href="/marketplace"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {lang === 'en' ? 'Marketplace' : 'Soko'}
+                </Link>
+
+                <Link
+                  href="/agrovets"
+                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t.agrovetConsole?.split(' ')[0] || 'Agrovets'}
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Main Container */}
