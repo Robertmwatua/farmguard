@@ -658,7 +658,7 @@ export default function Dashboard() {
 
             <button
               onClick={handleSignOut}
-              className="p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all flex items-center gap-2"
+              className="hidden lg:flex p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all items-center gap-2"
               title={t.signOut}
             >
               <LogOut className="w-4 h-4" />
