@@ -1,0 +1,8 @@
+{
+  "appId": "com.farmguard.app",
+  "appName": "FarmGuard AI",
+  "webDir": "out",
+  "server": {
+    "cleartext": true
+  }
+}
