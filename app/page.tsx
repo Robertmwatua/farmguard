@@ -369,21 +369,21 @@ export default function Home() {
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
                               <Info className="w-4 h-4" /> {t.diagnosticOverview}
                             </h4>
-                            <p className="text-zinc-300 text-sm leading-relaxed">{aiAnalysis.diagnosticOverview}</p>
+                            <p className="text-zinc-300 text-sm leading-relaxed">{aiAnalysis?.diagnosticOverview}</p>
                           </div>
 
                           <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-red-400 font-bold mb-3">
                               <ShieldAlert className="w-4 h-4" /> {t.immediateProtocol}
                             </h4>
-                            <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis.immediateProtocol}</p>
+                            <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis?.immediateProtocol}</p>
                           </div>
 
                           <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
                               <ClipboardList className="w-4 h-4" /> {t.longTerm}
                             </h4>
-                            <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis.longTermRecommendations}</p>
+                            <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis?.longTermRecommendations}</p>
                           </div>
                         </motion.div>
                       )}

@@ -23,15 +23,13 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  X,
   Lightbulb,
   Sprout,
   Droplets,
   Bug,
   Activity,
   Sparkles,
-  RefreshCw,
-  Menu
+  RefreshCw
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
@@ -256,7 +254,6 @@ export default function TeachingsPage() {
   const [lang, setLang] = useState<'en' | 'sw'>('en')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Quiz states
   const [quizActive, setQuizActive] = useState(false)
@@ -290,21 +287,6 @@ export default function TeachingsPage() {
       ? "Habari! Mimi ni Mwalimu wako wa AI wa Masomo ya Kilimo. Uliza maswali yoyote kuhusu mimea, kemia ya udongo, kufuga, au umwagiliaji. Nitakujibu kwa kilimo TU! 🌱"
       : "Hello! I am your AI Agronomy Teacher. Ask me any questions about soil chemistry, composting, precision irrigation, crop spacing, or livestock rearing. I am trained to discuss farming ONLY! 🌱"
     setChatMessages([{ role: 'bot', content: welcome }])
-  }, [])
-
-  // Cleanup speech resources on unmount to prevent mobile browser memory leaks or "already started" errors
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-          recognitionRef.current = null;
-        } catch (e) { }
-      }
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    }
   }, [])
 
   const toggleLang = () => {
@@ -357,18 +339,13 @@ export default function TeachingsPage() {
           }))
         })
       })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'API Error');
-      }
-
       const payload = await res.json()
       setChatMessages(prev => [...prev, { role: 'bot', content: payload.content }])
-     } catch (err: any) {
-       const errorMessage = err.message || 'Unknown error';
-       setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? `Error: ${errorMessage}. Please try again.` : `Hitilafu: ${errorMessage}. Tafadhali jaribu tena.` }])
-     }
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? 'Connection dropped. Please try again.' : 'Hitilafu ya mtandao. Tafadhali jaribu tena.' }])
+    } finally {
+      setChatLoading(false)
+    }
   }
 
   // Voice speech dictation inside teachings
@@ -498,13 +475,13 @@ export default function TeachingsPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-24 transition-colors duration-300">
 
       {/* Navigation */}
-      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 w-full">
-        <div className="max-w-7xl mx-auto px-3 md:px-6 h-16 flex items-center justify-between">
+      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
               <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">{t.backToDashboard}</span>
             </Link>
-            <div className="w-px h-6 bg-zinc-800 hidden sm:block" />
+            <div className="w-px h-6 bg-zinc-800" />
             <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
               <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
                 <BookOpen className="w-4 h-4 text-emerald-400" />
@@ -513,25 +490,22 @@ export default function TeachingsPage() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center gap-1">
-              <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
-                {lang === 'en' ? 'Community' : 'Jamii'}
-              </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Community' : 'Jamii'}
+            </Link>
 
-              <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
-                {lang === 'en' ? 'Calendar' : 'Ratiba'}
-              </Link>
+            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Calendar' : 'Ratiba'}
+            </Link>
 
-              <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
-                {lang === 'en' ? 'Diary' : 'Shajara'}
-              </Link>
+            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Diary' : 'Shajara'}
+            </Link>
 
-              <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-2">
-                {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-              </Link>
-            </div>
+            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+            </Link>
 
             <button
               onClick={toggleLang}
@@ -547,84 +521,12 @@ export default function TeachingsPage() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
-
-            {/* Mobile Menu Toggle */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:border-emerald-500/30 transition-all"
-              aria-label="Toggle menu"
-            >
-              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Menu Dropdown */}
-        <AnimatePresence>
-          {isMobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="lg:hidden border-t border-zinc-800/50 bg-zinc-950/95 backdrop-blur-md"
-            >
-              <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col gap-1">
-                <Link
-                  href="/community"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {lang === 'en' ? 'Community' : 'Jamii'}
-                </Link>
-
-                <Link
-                  href="/calendar"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {lang === 'en' ? 'Calendar' : 'Ratiba'}
-                </Link>
-
-                <Link
-                  href="/notes"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {lang === 'en' ? 'Diary' : 'Shajara'}
-                </Link>
-
-                <Link
-                  href="/estimator"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-                </Link>
-
-                <Link
-                  href="/marketplace"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {lang === 'en' ? 'Marketplace' : 'Soko'}
-                </Link>
-
-                <Link
-                  href="/agrovets"
-                  className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-zinc-900/50"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {t.agrovetConsole?.split(' ')[0] || 'Agrovets'}
-                </Link>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </nav>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 overflow-x-hidden">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10">
 
         {/* Header Block */}
         <div className="mb-12 text-center max-w-3xl mx-auto relative">
@@ -896,30 +798,8 @@ export default function TeachingsPage() {
           {/* Right Column: AI Academy Copilot */}
           <aside className="space-y-6">
 
-            {/* Recent Scans / History Section */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-5 shadow-xl relative overflow-hidden group">
-              <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
-
-              <div className="flex items-center justify-between mb-4 relative z-10">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                  <h3 className="font-bold text-white text-sm">{t.recentScans}</h3>
-                </div>
-                <Link href="/dashboard" className="text-[10px] text-emerald-400/80 hover:text-emerald-400 font-bold transition-colors">
-                  {t.viewAll}
-                </Link>
-              </div>
-
-              {/* Optimized scroll area for mobile to prevent layout bloat */}
-              <div className="space-y-2.5 max-h-[160px] md:max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent relative z-10">
-                <div className="text-center py-6 bg-zinc-950/40 border border-dashed border-zinc-800 rounded-2xl">
-                  <p className="text-zinc-500 text-[10px] italic">{t.noScans}</p>
-                </div>
-              </div>
-            </div>
-
             {/* AI Classroom Copilot Card */}
-            <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-4 md:p-6 h-[500px] max-h-[75dvh] lg:h-[600px] lg:max-h-none flex flex-col justify-between shadow-2xl relative overflow-hidden">
+            <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-4 md:p-6 h-[550px] max-h-[85dvh] lg:h-[650px] lg:max-h-none flex flex-col justify-between shadow-2xl relative overflow-hidden">
               <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
 
               <div className="flex items-center justify-between pb-2 md:pb-3 border-b border-zinc-800/60 mb-2 md:mb-3 shrink-0">

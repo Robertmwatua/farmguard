@@ -23,7 +23,8 @@ import {
   Activity,
   CheckSquare,
   Menu,
-  Download
+  Download,
+  Bell
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
@@ -101,7 +102,7 @@ export default function Dashboard() {
 
   // Capture PWA Install Prompt
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault()
       setDeferredPrompt(e)
     }
@@ -126,6 +127,26 @@ export default function Dashboard() {
     localStorage.setItem('theme', nextTheme)
     document.documentElement.classList.toggle('light', nextTheme === 'light')
     window.dispatchEvent(new Event('local-storage'))
+  }
+
+  const triggerTestAlert = () => {
+    if (typeof window === 'undefined') return
+
+    if (!(typeof window !== 'undefined' && "Notification" in window)) {
+      alert(lang === 'en' ? "This browser does not support notifications" : "Kivinjari hiki hakihimili arifa")
+      return
+    }
+
+    (window as any).Notification.requestPermission().then((permission: string) => {
+      if (permission === "granted") {
+        setTimeout(() => {
+          new (window as any).Notification("FarmGuard AI", {
+            body: lang === 'en' ? "5-second test alert active! PWA functionality verified." : "Arifa ya majaribio ya sekunde 5 imetumwa! PWA inafanya kazi.",
+            icon: "/icon-192.png"
+          })
+        }, 5000);
+      }
+    })
   }
 
   const handleInstallClick = async () => {
@@ -581,7 +602,7 @@ export default function Dashboard() {
 
       if (dbError) throw new Error(dbError.message)
 
-      setLatestScanId(insertData.id)
+      if (insertData) setLatestScanId(insertData.id)
       setStatus('success')
       fetchScans() // Refresh history with user-scoped data
 
@@ -783,6 +804,17 @@ export default function Dashboard() {
                     {lang === 'en' ? 'Install FarmGuard App' : 'Sakinisha App ya FarmGuard'}
                   </button>
                 )}
+
+                <button
+                  onClick={() => {
+                    triggerTestAlert()
+                    setIsMobileMenuOpen(false)
+                  }}
+                  className="flex items-center gap-2 text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors px-3 py-3 rounded-lg hover:bg-amber-500/10 mb-1"
+                >
+                  <Bell className="w-4 h-4" />
+                  {lang === 'en' ? 'Test 5s Alert' : 'Jaribu Arifa (Sekunde 5)'}
+                </button>
 
                 <button
                   onClick={() => {
@@ -1374,7 +1406,7 @@ export default function Dashboard() {
                     <div
                       ref={mapContainerRef}
                       id="field-map-container"
-                      className="h-[300px] md:h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10"
+                      className="h-[400px] md:h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10"
                     />
                   </div>
                 </div>
