@@ -22,7 +22,8 @@ import {
   Plus,
   Activity,
   CheckSquare,
-  Menu
+  Menu,
+  Download
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [latestScanId, setLatestScanId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Language & Theme states
@@ -97,6 +99,20 @@ export default function Dashboard() {
     }
   }, [])
 
+  // Capture PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
+  }, [])
+
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'sw' : 'en'
     setLang(nextLang)
@@ -110,6 +126,18 @@ export default function Dashboard() {
     localStorage.setItem('theme', nextTheme)
     document.documentElement.classList.toggle('light', nextTheme === 'light')
     window.dispatchEvent(new Event('local-storage'))
+  }
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null)
+    }
+    setIsMobileMenuOpen(false)
   }
 
   const t = translations[lang]
@@ -744,6 +772,17 @@ export default function Dashboard() {
                 </Link>
 
                 <div className="border-t border-zinc-800/50 my-2" />
+
+                {/* Manual PWA Install Option */}
+                {deferredPrompt && (
+                  <button
+                    onClick={handleInstallClick}
+                    className="flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-3 rounded-lg hover:bg-emerald-500/10 mb-1"
+                  >
+                    <Download className="w-4 h-4" />
+                    {lang === 'en' ? 'Install FarmGuard App' : 'Sakinisha App ya FarmGuard'}
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
