@@ -20,7 +20,9 @@ import {
   Bot,
   Send,
   Mic,
-  MessageSquare
+  MessageSquare,
+  Volume2,
+  VolumeX
 } from 'lucide-react'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -75,6 +77,7 @@ export default function ScanDetails() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -248,6 +251,56 @@ export default function ScanDetails() {
     rec.start()
   }
 
+  // Voice Read-Aloud Narration Player
+  const speakAdvice = () => {
+    if (typeof window === 'undefined') return
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+      return
+    }
+
+    const plant = data.plant_name
+    const disease = data.disease
+    const health = data.health_status
+    const recText = data.recommendation
+
+    let narrativeText = ''
+    if (lang === 'en') {
+      narrativeText = `FarmGuard Intelligence Report for ${plant}. Identified crop condition is ${disease} with health status ${health}. Immediate Treatment Protocol is as follows: ${recText}`
+    } else {
+      narrativeText = `Ripoti ya FarmGuard ya ${plant}. Ugonjwa uliopatikana kwenye mmea ni ${disease} ukiwa na hali ya afya ${health}. Utaratibu wa matibabu ya haraka ni kama ifuatavyo: ${recText}`
+    }
+
+    const utterance = new SpeechSynthesisUtterance(narrativeText)
+
+    // Match Swahili vs English speech synthesis voices
+    const voices = window.speechSynthesis.getVoices()
+    if (lang === 'sw') {
+      const swVoice = voices.find(v => v.lang.startsWith('sw') || v.name.toLowerCase().includes('swahili'))
+      if (swVoice) utterance.voice = swVoice
+    } else {
+      const enVoice = voices.find(v => v.lang.startsWith('en') || v.name.toLowerCase().includes('english'))
+      if (enVoice) utterance.voice = enVoice
+    }
+
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+
+    setIsSpeaking(true)
+    window.speechSynthesis.speak(utterance)
+  }
+
+  // Cancel speech on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
@@ -383,12 +436,12 @@ export default function ScanDetails() {
           className="grid lg:grid-cols-[1fr_380px] gap-8"
         >
           
-          {/* Left Panel: Integrated Scans, Summaries, and Technical Pathology (lg:col-span-8 equivalent) */}
+          {/* Left Panel */}
           <div className="space-y-6">
             
             <div className="grid md:grid-cols-2 gap-6 items-start">
               
-              {/* Left Column: Image and High-level Stats */}
+              {/* Left Column */}
               <div className="space-y-6">
                 <motion.div variants={itemVariants} className="relative aspect-[4/3] rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900 shadow-xl">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -429,16 +482,43 @@ export default function ScanDetails() {
                   </div>
                 </motion.div>
 
-                {/* Medicine Advice Card */}
+                {/* Medicine Advice Card + 🔊 SPEAK USHAURI PLAYER */}
                 <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-emerald-950/10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                      <Droplet className="w-5 h-5 text-emerald-400" />
+                  
+                  {/* Speaker Toggler inside Medicine Prescription Box */}
+                  <div className="flex items-center justify-between mb-4 border-b border-zinc-800/60 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                        <Droplet className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">{t.prescription}</h3>
+                        <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Match</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-white">{t.prescription}</h3>
-                      <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Match</p>
-                    </div>
+
+                    {/* Audio read-aloud trigger */}
+                    <button
+                      onClick={speakAdvice}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                        isSpeaking 
+                          ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse'
+                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                      }`}
+                      title={lang === 'en' ? 'Narrate Diagnostics' : 'Sikiliza Ripoti'}
+                    >
+                      {isSpeaking ? (
+                        <>
+                          <VolumeX className="w-3.5 h-3.5" />
+                          <span>{lang === 'en' ? 'Stop' : 'Zima'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'en' ? 'Listen' : 'Sikiliza'}</span>
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   <div className="text-sm text-zinc-300 leading-relaxed mb-6">
@@ -476,7 +556,7 @@ export default function ScanDetails() {
 
               </div>
 
-              {/* Right Column: Detailed Analysis text cards */}
+              {/* Right Column */}
               <div className="space-y-6">
                 
                 {/* Farmer Summary */}
@@ -543,10 +623,10 @@ export default function ScanDetails() {
 
           </div>
 
-          {/* Right Panel Sidebar: 🤖 AI SCAN COPILOT WIDGET */}
+          {/* Right Panel Sidebar */}
           <aside className="space-y-6">
             
-            {/* 🤖 Dynamic Point Summary Panel */}
+            {/* AI Summary Card */}
             <motion.div 
               variants={itemVariants}
               className="bg-zinc-900/70 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-2xl"
@@ -554,7 +634,7 @@ export default function ScanDetails() {
               <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
               
               <h3 className="font-bold text-white text-md mb-4 flex items-center gap-2">
-                <Bot className="w-5 h-5 text-emerald-400 animate-pulse" />
+                <Bot className="w-5 h-5 text-emerald-400" />
                 {lang === 'en' ? 'AI Diagnostic Summary' : 'Muhtasari wa AI'}
               </h3>
 
@@ -570,12 +650,11 @@ export default function ScanDetails() {
               )}
             </motion.div>
 
-            {/* 💬 Copilot Chat Widget */}
+            {/* Copilot Chat Box */}
             <motion.div 
               variants={itemVariants}
               className="bg-zinc-900/70 border border-zinc-800 rounded-3xl p-6 h-[400px] flex flex-col justify-between shadow-2xl relative"
             >
-              {/* Online Indicator */}
               <div className="flex items-center justify-between pb-3 border-b border-zinc-800/60 mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
@@ -589,7 +668,6 @@ export default function ScanDetails() {
                 <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
               </div>
 
-              {/* Chat Stream */}
               <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent text-xs mb-3">
                 {chatMessages.map((m, idx) => (
                   <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -621,7 +699,6 @@ export default function ScanDetails() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Chat input form */}
               <form onSubmit={handleChatSubmit} className="flex gap-1.5 shrink-0 relative">
                 <div className="relative flex-1">
                   <input 
@@ -629,7 +706,7 @@ export default function ScanDetails() {
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder={lang === 'en' ? "Ask about this crop..." : "Uliza kuhusu mmea huu..."}
-                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl py-2.5 pl-3 pr-9 text-xs focus:outline-none focus:border-emerald-500/50"
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl py-2.5 pl-3 pr-9 text-xs focus:outline-none"
                   />
                   <button
                     type="button"

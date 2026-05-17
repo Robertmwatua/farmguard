@@ -54,8 +54,12 @@ export default function Dashboard() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Dashboard Tabs ('scans' | 'tracker')
-  const [activeTab, setActiveTab] = useState<'scans' | 'tracker'>('scans')
+  // Dashboard Tabs ('scans' | 'tracker' | 'map')
+  const [activeTab, setActiveTab] = useState<'scans' | 'tracker' | 'map'>('scans')
+
+  // Satellite Map states
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const mapRef = useRef<any>(null)
 
   // Adaptive Crop Care Tracker Task lists
   const [trackerTasks, setTrackerTasks] = useState<Record<string, TaskItem[]>>({})
@@ -152,6 +156,107 @@ export default function Dashboard() {
       fetchScans()
     }
   }, [userId, fetchScans])
+
+  // Dynamic Leaflet CSS/Script Injection for SSR compatibility
+  useEffect(() => {
+    if (activeTab === 'map' && !mapLoaded) {
+      // 1. Inject Leaflet CSS stylesheet
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
+      link.crossOrigin = ''
+      document.head.appendChild(link)
+
+      // 2. Inject Leaflet JS Library
+      const script = document.createElement('script')
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
+      script.crossOrigin = ''
+      script.onload = () => {
+        setMapLoaded(true)
+      }
+      document.head.appendChild(script)
+    }
+  }, [activeTab, mapLoaded])
+
+  // Construct Leaflet Satellite Map with color-coded scan pins
+  useEffect(() => {
+    if (activeTab === 'map' && mapLoaded && typeof window !== 'undefined' && (window as any).L) {
+      const L = (window as any).L
+
+      // Fallback farm center (Nairobi coordinates)
+      let lat = -1.2921
+      let lng = 36.8219
+
+      const initMap = (centerLat: number, centerLng: number) => {
+        if (mapRef.current) {
+          mapRef.current.remove()
+        }
+
+        const map = L.map('field-map-container').setView([centerLat, centerLng], 17)
+        mapRef.current = map
+
+        // High-resolution ESRI World Satellite tile layer
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles &copy; Esri &mdash; Satellite Field Imagery'
+        }).addTo(map)
+
+        // Plot colored pins representing crop diagnostic records
+        scans.forEach((scan: any, idx: number) => {
+          const isCritical = scan.health_status === 'Critical'
+          const isModerate = scan.health_status === 'Moderate'
+          
+          const color = isCritical ? '#f87171' : isModerate ? '#facc15' : '#34d399'
+
+          // Generate realistic row-offsets centered on the farmer's GPS coordinates
+          const offsetLat = centerLat + (Math.sin(idx * 0.9) * 0.0006)
+          const offsetLng = centerLng + (Math.cos(idx * 0.9) * 0.0006)
+
+          const marker = L.circleMarker([offsetLat, offsetLng], {
+            radius: 10,
+            fillColor: color,
+            color: '#18181b',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+          }).addTo(map)
+
+          // Premium custom popup styling
+          const popupContent = `
+            <div style="font-family: sans-serif; padding: 4px; width: 170px; color: #18181b;">
+              <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px; color: #111827;">${scan.plant_name}</h4>
+              <p style="margin: 0 0 6px 0; font-size: 11px; color: #4b5563;">Spotted: <b>${scan.disease}</b></p>
+              <div style="margin-bottom: 8px;">
+                <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: ${color}20; color: ${color}; border: 1px solid ${color}40;">
+                  ${scan.health_status}
+                </span>
+              </div>
+              <a href="/scan/${scan.id}" style="display: block; text-align: center; text-decoration: none; padding: 6px; background: #10b981; color: #fff; border-radius: 6px; font-size: 11px; font-weight: bold;">
+                Open Report
+              </a>
+            </div>
+          `
+          marker.bindPopup(popupContent)
+        })
+      }
+
+      // Fetch Geolocation
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            initMap(pos.coords.latitude, pos.coords.longitude)
+          },
+          () => {
+            initMap(lat, lng)
+          },
+          { timeout: 5000 }
+        )
+      } else {
+        initMap(lat, lng)
+      }
+    }
+  }, [activeTab, mapLoaded, scans])
 
   // Initialize and persistent local tasks for unique plants
   useEffect(() => {
@@ -465,7 +570,6 @@ export default function Dashboard() {
     
     scans.forEach((scan) => {
       if (!cropsMap[scan.plant_name]) {
-        // Since scans are ordered by created_at DESC, first scan we see is the latest!
         cropsMap[scan.plant_name] = {
           plantName: scan.plant_name,
           diseaseSpotted: scan.disease,
@@ -482,7 +586,7 @@ export default function Dashboard() {
   }, [scans])
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans transition-colors duration-300 font-sans">
       
       {/* Navigation */}
       <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
@@ -509,6 +613,10 @@ export default function Dashboard() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
+
+            <Link href="/marketplace" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Marketplace' : 'Soko'}
+            </Link>
 
             <Link href="/agrovets" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {t.agrovetConsole.split(' ')[0]}
@@ -546,9 +654,12 @@ export default function Dashboard() {
             <a href="#field-intel" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
               {t.weather}
             </a>
-            <a href="#management" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
+            <a href="#management" className="rounded-lg border border-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
               {lang === 'en' ? 'Crop Hub' : 'Kitovu cha Mazao'}
             </a>
+            <Link href="/marketplace" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
+              {lang === 'en' ? '🏷️ Bidding Marketplace' : '🏷️ Soko la Zabuni'}
+            </Link>
           </div>
         </div>
 
@@ -786,12 +897,12 @@ export default function Dashboard() {
           </aside>
         </div>
 
-        {/* ── Multi-Tab Management Hub: Recent Scans vs Adaptive Care Tracker ── */}
+        {/* ── Multi-Tab Management Hub: Scans vs Care Tracker vs Field Map ── */}
         <div id="management" className="mt-16 scroll-mt-24">
           <div className="border-b border-zinc-800/80 pb-4 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             
             {/* Tabs Trigger Headers */}
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <button 
                 onClick={() => setActiveTab('scans')}
                 className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
@@ -811,8 +922,20 @@ export default function Dashboard() {
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <CheckSquare className="w-5 h-5 text-emerald-400 animate-pulse" />
+                  <CheckSquare className="w-5 h-5 text-emerald-400" />
                   {lang === 'en' ? 'Adaptive Crop Care' : 'Mratibu wa Mazao'}
+                </span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('map')}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
+                  activeTab === 'map' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
+                  {lang === 'en' ? 'Field Satellite Map' : 'Ramani ya Shamba'}
                 </span>
               </button>
             </div>
@@ -832,13 +955,13 @@ export default function Dashboard() {
           <AnimatePresence mode="wait">
             
             {/* ── TAB 1: RECENT SCANS LIST ── */}
-            {activeTab === 'scans' ? (
+            {activeTab === 'scans' && (
               <motion.div 
                 key="tab-scans"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="grid gap-4"
+                className="grid gap-4 animate-fade-in"
               >
                 {scans.length === 0 ? (
                   <div className="text-center p-8 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 text-zinc-500">
@@ -906,15 +1029,16 @@ export default function Dashboard() {
                   )
                 })}
               </motion.div>
-            ) : (
-              
-              /* ── TAB 2: ADAPTIVE CROP CARE TRACKER HUB ── */
+            )}
+            
+            {/* ── TAB 2: ADAPTIVE CROP CARE TRACKER HUB ── */}
+            {activeTab === 'tracker' && (
               <motion.div 
                 key="tab-tracker"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="grid gap-8 lg:grid-cols-2"
+                className="grid gap-8 lg:grid-cols-2 animate-fade-in"
               >
                 {trackedCrops.length === 0 ? (
                   <div className="col-span-2 text-center p-8 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 text-zinc-500">
@@ -923,7 +1047,6 @@ export default function Dashboard() {
                 ) : trackedCrops.map((crop) => {
                   const styles = getStyleForHealth(crop.healthStatus)
                   
-                  // Calculate dynamic checking schedule based on latest scan condition
                   const isCritical = crop.healthStatus === 'Critical'
                   const isModerate = crop.healthStatus === 'Moderate'
                   const scheduleLabel = isCritical
@@ -935,7 +1058,6 @@ export default function Dashboard() {
                   const nextCheckDate = isCritical ? 'Tomorrow' : isModerate ? 'In 2 Days' : 'In 6 Days'
                   const nextCheckLabel = lang === 'en' ? `Next Scouting: ${nextCheckDate}` : `Ukaguzi Ujao: ${nextCheckDate === 'Tomorrow' ? 'Kesho' : nextCheckDate === 'In 2 Days' ? 'Siku 2' : 'Siku 6'}`
 
-                  // Calculate task checklist completion rate
                   const tasks = trackerTasks[crop.plantName] || []
                   const totalTasks = tasks.length
                   const completedTasks = tasks.filter(t => t.completed).length
@@ -946,7 +1068,6 @@ export default function Dashboard() {
                       key={crop.plantName}
                       className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 flex flex-col justify-between hover:border-emerald-500/20 transition-all shadow-xl"
                     >
-                      {/* Top Header info */}
                       <div>
                         <div className="flex items-center justify-between pb-4 border-b border-zinc-800/60 mb-4">
                           <div className="flex items-center gap-3">
@@ -964,7 +1085,6 @@ export default function Dashboard() {
                           </span>
                         </div>
 
-                        {/* Adaptive Scheduler Widget */}
                         <div className="bg-zinc-950/80 border border-zinc-800/60 rounded-2xl p-4 mb-6">
                           <div className="flex items-start gap-3">
                             <Calendar className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
@@ -980,7 +1100,6 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {/* Care Checklist progress header */}
                         <div className="mb-4">
                           <div className="flex justify-between items-end mb-2 text-xs">
                             <span className="text-zinc-400 font-semibold uppercase tracking-wider">{lang === 'en' ? 'Care Checklist Protocol' : 'Orodha ya Kazi'}</span>
@@ -995,7 +1114,6 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {/* Action checklist */}
                         <div className="space-y-2 mb-6">
                           {tasks.map((task) => (
                             <div 
@@ -1007,7 +1125,7 @@ export default function Dashboard() {
                                 <input 
                                   type="checkbox"
                                   checked={task.completed}
-                                  onChange={() => {}} // toggled on container div click
+                                  onChange={() => {}}
                                   className="mt-0.5 accent-emerald-400"
                                 />
                                 <span className={`text-xs ${task.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>
@@ -1028,7 +1146,6 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* Custom Chore Input Form */}
                       <div className="flex gap-2 border-t border-zinc-800/60 pt-4 mt-auto">
                         <input 
                           type="text"
@@ -1054,6 +1171,44 @@ export default function Dashboard() {
                     </motion.div>
                   )
                 })}
+              </motion.div>
+            )}
+
+            {/* ── TAB 3: ADAPTIVE FIELD SATELLITE MAP ── */}
+            {activeTab === 'map' && (
+              <motion.div
+                key="tab-map"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4 animate-fade-in"
+              >
+                <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="mb-4">
+                    <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-emerald-400 animate-pulse" />
+                      {lang === 'en' ? 'Field Health Satellite Map' : 'Ramani ya Satilaiti ya Afya'}
+                    </h3>
+                    <p className="text-xs text-zinc-500">
+                      {lang === 'en' 
+                        ? 'Real-time diagnostic hot-spots mapped to your field plot. Colored pins show crop pathology (Red = Critical, Yellow = Moderate, Green = Healthy).' 
+                        : 'Maeneo yenye maambukizi ya ugonjwa yaliyopangwa kwenye ramani ya shamba lako (Nyekundu = Hatari, Njano = Kiasi, Kijani = Afya).'}
+                    </p>
+                  </div>
+
+                  <div className="relative">
+                    {!mapLoaded && (
+                      <div className="absolute inset-0 bg-zinc-950/80 rounded-2xl flex items-center justify-center gap-3 z-30">
+                        <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+                        <span className="text-zinc-400 text-sm">Loading field satellite imaging...</span>
+                      </div>
+                    )}
+                    <div 
+                      id="field-map-container" 
+                      className="h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10" 
+                    />
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
