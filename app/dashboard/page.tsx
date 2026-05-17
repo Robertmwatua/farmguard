@@ -137,13 +137,25 @@ export default function Dashboard() {
       return
     }
 
-    (window as any).Notification.requestPermission().then((permission: string) => {
+    (window as any).Notification.requestPermission().then(async (permission: string) => {
       if (permission === "granted") {
-        setTimeout(() => {
-          new (window as any).Notification("FarmGuard AI", {
-            body: lang === 'en' ? "5-second test alert active! PWA functionality verified." : "Arifa ya majaribio ya sekunde 5 imetumwa! PWA inafanya kazi.",
-            icon: "/icon-192.png"
-          })
+        setTimeout(async () => {
+          try {
+            const title = "FarmGuard AI";
+            const options = {
+              body: lang === 'en' ? "5-second test alert active! PWA functionality verified." : "Arifa ya majaribio ya sekunde 5 imetumwa! PWA inafanya kazi.",
+              icon: "/icon-192.png"
+            };
+
+            if ('serviceWorker' in navigator) {
+              const registration = await navigator.serviceWorker.ready;
+              await (registration as any).showNotification(title, options);
+            } else {
+              new (window as any).Notification(title, options);
+            }
+          } catch (err) {
+            console.error("Dashboard notification failed:", err);
+          }
         }, 5000);
       }
     })

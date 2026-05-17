@@ -23,8 +23,8 @@ export default function PWANotificationManager({ lang }: { lang: 'en' | 'sw' }) 
       if (result === 'granted') {
         // Trigger a gorgeous welcome notification
         new Notification('FarmGuard AI', {
-          body: lang === 'en' 
-            ? 'Notification Shield Active! We will alert you of upcoming scouting times, watering schedules, and weather threats.' 
+          body: lang === 'en'
+            ? 'Notification Shield Active! We will alert you of upcoming scouting times, watering schedules, and weather threats.'
             : 'Arifa Zimeanzishwa! Tutakujulisha kuhusu muda wa kuchunguza mimea, kumwagilia maji, na hatari za hewa.',
           icon: '/icon-192.png',
           badge: '/icon-192.png',
@@ -39,19 +39,33 @@ export default function PWANotificationManager({ lang }: { lang: 'en' | 'sw' }) 
   const triggerTestNotification = () => {
     if (permission !== 'granted') return;
     setTestActive(true);
-    
-    // Schedule a test alert in 5 seconds
-    setTimeout(() => {
-      new Notification(lang === 'en' ? '🌱 Crop Scouting Checkpoint' : '🌱 Ukaguzi wa Mazao Shambani', {
-        body: lang === 'en'
-          ? 'Nakuru Intelligence Alert: It is time to scout your Maize field for Maize Streak virus symptoms!'
-          : 'Taarifa ya Nakuru: Ni wakati wa kukagua shamba lako la Mahindi dhidi ya ugonjwa wa milia ya mahindi!',
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        vibrate: [100, 50, 100],
-        tag: 'scouting-alert'
-      } as any);
-      setTestActive(false);
+
+    // Schedule a test alert in 5 seconds. 
+    // Using Service Worker is the robust way to handle notifications in PWAs on mobile.
+    setTimeout(async () => {
+      try {
+        const title = lang === 'en' ? '🌱 Crop Scouting Checkpoint' : '🌱 Ukaguzi wa Mazao Shambani';
+        const options = {
+          body: lang === 'en'
+            ? 'Nakuru Intelligence Alert: It is time to scout your Maize field for Maize Streak virus symptoms!'
+            : 'Taarifa ya Nakuru: Ni wakati wa kukagua shamba lako la Mahindi dhidi ya ugonjwa wa milia ya mahindi!',
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          vibrate: [100, 50, 100],
+          tag: 'scouting-alert'
+        };
+
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          await (registration as any).showNotification(title, options);
+        } else {
+          new Notification(title, options as any);
+        }
+      } catch (err) {
+        console.error('Test alert failed:', err);
+      } finally {
+        setTestActive(false);
+      }
     }, 5000);
   };
 
@@ -60,15 +74,14 @@ export default function PWANotificationManager({ lang }: { lang: 'en' | 'sw' }) 
   return (
     <div className="bg-zinc-900/50 border border-zinc-850 rounded-3xl p-6 relative overflow-hidden shadow-xl">
       <div className="absolute -top-12 -right-12 w-24 h-24 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
-      
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        
+
         <div className="flex items-start gap-3.5">
-          <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-            permission === 'granted'
+          <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 border ${permission === 'granted'
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
               : 'bg-zinc-950/40 border-zinc-800 text-zinc-500'
-          }`}>
+            }`}>
             {permission === 'granted' ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </div>
           <div>
@@ -83,12 +96,12 @@ export default function PWANotificationManager({ lang }: { lang: 'en' | 'sw' }) 
             </h3>
             <p className="text-zinc-500 text-xs mt-1 leading-relaxed">
               {permission === 'granted'
-                ? (lang === 'en' 
-                    ? 'Receive push reminders for watering, fertilization, and sudden weather warnings.'
-                    : 'Pokea vikumbusho vya kumwagilia maji, kuweka mbolea, na tahadhari za hali ya hewa.')
+                ? (lang === 'en'
+                  ? 'Receive push reminders for watering, fertilization, and sudden weather warnings.'
+                  : 'Pokea vikumbusho vya kumwagilia maji, kuweka mbolea, na tahadhari za hali ya hewa.')
                 : (lang === 'en'
-                    ? 'Enable browser push notifications to get live crop scouting and weather alerts.'
-                    : 'Wezesha arifa za kivinjari ili kupata ujumbe wa kuchunguza mazao na hali ya hewa shambani.')}
+                  ? 'Enable browser push notifications to get live crop scouting and weather alerts.'
+                  : 'Wezesha arifa za kivinjari ili kupata ujumbe wa kuchunguza mazao na hali ya hewa shambani.')}
             </p>
           </div>
         </div>
