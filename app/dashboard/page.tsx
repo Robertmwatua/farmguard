@@ -32,6 +32,19 @@ import WeatherWidget from '@/components/WeatherWidget'
 import PWANotificationManager from '@/components/PWANotificationManager'
 import { translations } from '@/lib/translations'
 
+// Define the specialized PWA Prompt event type
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+  prompt(): Promise<void>;
+}
+
+declare global {
+  interface WindowEventMap {
+    beforeinstallprompt: BeforeInstallPromptEvent;
+  }
+}
+
 interface TaskItem {
   id: string
   text: string
@@ -48,7 +61,7 @@ export default function Dashboard() {
   const [latestScanId, setLatestScanId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Language & Theme states
@@ -102,7 +115,7 @@ export default function Dashboard() {
 
   // Capture PWA Install Prompt
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
       e.preventDefault()
       setDeferredPrompt(e)
     }
