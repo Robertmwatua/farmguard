@@ -19,7 +19,8 @@ import {
   Loader2, 
   Wifi, 
   AlertCircle,
-  Hash
+  Hash,
+  Trash2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
@@ -188,45 +189,73 @@ export default function CommunityPage() {
   }
 
   // Handle message posting
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!chatInput.trim() || !user || chatLoading) return
+   const handleSendMessage = async (e: React.FormEvent) => {
+     e.preventDefault()
+     if (!chatInput.trim() || !user || chatLoading) return
 
-    const tempText = chatInput.trim()
-    setChatInput('')
-    setChatLoading(true)
+     const tempText = chatInput.trim()
+     setChatInput('')
+     setChatLoading(true)
 
-    try {
-      const { data: newRow, error: insertError } = await supabase
-        .from('community_messages')
-        .insert([
-          {
-            user_id: user.id,
-            username: username,
-            role: userRole,
-            content: tempText
-          }
-        ])
-        .select()
-        .single()
+     try {
+       const { data: newRow, error: insertError } = await supabase
+         .from('community_messages')
+         .insert([
+           {
+             user_id: user.id,
+             username: username,
+             role: userRole,
+             content: tempText
+           }
+         ])
+         .select()
+         .single()
 
-      if (insertError) {
-        throw insertError
-      }
+       if (insertError) {
+         throw insertError
+       }
 
-      if (newRow) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === newRow.id)) return prev
-          return [...prev, newRow]
-        })
-      }
-    } catch (err: any) {
-      console.error('Failed to post message:', err)
-      alert(lang === 'en' ? 'Classroom database sync delayed. Ensure migrations are fully applied.' : 'Hitilafu ya kuhifadhi mazungumzo. Hakikisha jedwali la community_messages limewekwa Supabase.')
-    } finally {
-      setChatLoading(false)
-    }
-  }
+       if (newRow) {
+         setMessages(prev => {
+           if (prev.some(m => m.id === newRow.id)) return prev
+           return [...prev, newRow]
+         })
+       }
+     } catch (err: any) {
+       console.error('Failed to post message:', err)
+       alert(lang === 'en' ? 'Classroom database sync delayed. Ensure migrations are fully applied.' : 'Hitilafu ya kuhifadhi mazungumzo. Hakikisha jedwali la community_messages limewekwa Supabase.')
+     } finally {
+       setChatLoading(false)
+     }
+   }
+
+   const handleClearChat = async () => {
+     if (!window.confirm(lang === 'en' ? 'Are you sure you want to clear all chat messages? This action cannot be undone.' : 'Unakuhisi kwamba unataka kufuta mazungumzo yote? Huduma hii huwa hawezi kurudishwa.')) {
+       return
+     }
+
+     try {
+       // Delete all messages from the community_messages table
+       const { error: deleteError } = await supabase
+         .from('community_messages')
+         .delete()
+         .neq('id', 0) // Delete all rows
+
+       if (deleteError) {
+         throw deleteError
+       }
+
+       // Clear local state
+       setMessages([])
+       setFilteredMessages([])
+
+       // Show success message
+       alert(lang === 'en' ? 'Chat cleared successfully!' : 'Mzungumzo uliosafishwa kikamilifu!')
+     } catch (err: any) {
+       console.error('Failed to clear chat:', err)
+       alert(lang === 'en' ? 'Failed to clear chat. Please try again.' : 'Hitilafu ya kufuta mzungumzo. Tafadhali jaribu tena.')
+     }
+   }
 
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'sw' : 'en'
@@ -417,25 +446,41 @@ export default function CommunityPage() {
           {/* Right Panel: Scrollable chat board and inputs */}
           <main className="bg-zinc-900/50 border border-zinc-850 rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl relative">
             
-            {/* Top Toolbar: Search and Filter */}
-            <div className="px-6 py-3.5 border-b border-zinc-850/80 bg-zinc-900/30 flex items-center justify-between gap-4 shrink-0">
-              <div className="flex items-center gap-2">
-                <Hash className="w-4.5 h-4.5 text-emerald-400" />
-                <h3 className="font-extrabold text-white text-sm">nakuru-regional-board</h3>
-              </div>
+             {/* Top Toolbar: Search and Filter */}
+             <div className="px-6 py-3.5 border-b border-zinc-850/80 bg-zinc-900/30 flex items-center justify-between gap-4 shrink-0">
+               <div className="flex items-center gap-2">
+                 <Hash className="w-4.5 h-4.5 text-emerald-400" />
+                 <h3 className="font-extrabold text-white text-sm">nakuru-regional-board</h3>
+               </div>
 
-              {/* Search Bar */}
-              <div className="relative max-w-xs w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input 
-                  type="text"
-                  placeholder={lang === 'en' ? 'Search messages...' : 'Tafuta mazungumzo...'}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-850 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-emerald-500/30 text-white placeholder-zinc-700"
-                />
-              </div>
-            </div>
+               {/* Search Bar */}
+               <div className="relative max-w-xs w-full">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                 <input 
+                   type="text"
+                   placeholder={lang === 'en' ? 'Search messages...' : 'Tafuta mazungumzo...'}
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="w-full bg-zinc-950 border border-zinc-850 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-emerald-500/30 text-white placeholder-zinc-700"
+                 />
+               </div>
+
+               {/* Clear Chat Button */}
+               <button 
+                 onClick={handleClearChat}
+                 disabled={chatLoading}
+                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold ${
+                   chatLoading ? 'opacity-50 cursor-not-allowed' : ''
+                 }`}
+               >
+                 {chatLoading ? (
+                   <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
+                 ) : (
+                   <Trash2 className="w-3.5 h-3.5 text-emerald-400" />
+                 )}
+                 <span>{lang === 'en' ? 'Clear Chat' : 'Okoa Mzungumzo'}</span>
+               </button>
+             </div>
 
             {/* Chat message board area */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">

@@ -2,14 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FarmGuard AI",
-  description: "AI-powered crop disease detection and reverse bidding treatment marketplace",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "FarmGuard AI",
-  },
+  viewport: "width=device-width, initial-scale=1",
+  // other metadata fields
+
 };
 
 import ChatBot from "@/components/ChatBot";
@@ -22,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased selection:bg-emerald-500/20 selection:text-emerald-400">
+      <body className="antialiased selection:bg-emerald-500/20 selection:text-emerald-400 overflow-x-hidden">
         <PWARegister />
         {children}
         <ChatBot />
