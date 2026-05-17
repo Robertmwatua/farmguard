@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { Mail, Lock, Loader2, AlertCircle, UserPlus, ShieldCheck, ArrowRight } from "lucide-react";
+import { Mail, Lock, Loader2, AlertCircle, UserPlus, ShieldCheck, ArrowRight, User, Store, Globe, Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { translations } from "@/lib/translations";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,40 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Role selector (default to farmer, but user can click to switch)
+  const [selectedRole, setSelectedRole] = useState<"farmer" | "agrovet">("farmer");
+
+  // Multi-language & Theme support
+  const [lang, setLang] = useState<'en' | 'sw'>('en');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const savedLang = localStorage.getItem('lang') as 'en' | 'sw';
+    if (savedLang) setLang(savedLang);
+
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light';
+    const finalTheme = savedTheme || 'dark';
+    setTheme(finalTheme);
+    document.documentElement.classList.toggle('light', finalTheme === 'light');
+  }, []);
+
+  const toggleLang = () => {
+    const nextLang = lang === 'en' ? 'sw' : 'en';
+    setLang(nextLang);
+    localStorage.setItem('lang', nextLang);
+    window.dispatchEvent(new Event('local-storage'));
+  };
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    document.documentElement.classList.toggle('light', nextTheme === 'light');
+    window.dispatchEvent(new Event('local-storage'));
+  };
+
+  const t = translations[lang];
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -33,6 +68,11 @@ export default function SignupPage() {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
+          options: {
+            data: {
+              role: selectedRole
+            }
+          }
         });
 
         if (signUpError) {
@@ -45,39 +85,89 @@ export default function SignupPage() {
           return;
         }
 
-        // Supabase may require email confirmation — redirect regardless and
-        // let the user check their inbox or attempt to sign in.
-        window.location.replace("/dashboard");
+        // Redirect based on signed-up role
+        if (selectedRole === "agrovet") {
+          window.location.replace("/agrovets");
+        } else {
+          window.location.replace("/dashboard");
+        }
       } catch {
         setError("An unexpected error occurred. Please try again.");
         setLoading(false);
       }
     },
-    [email, password, confirmPassword],
+    [email, password, confirmPassword, selectedRole],
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-12 transition-colors duration-300">
+      
+      {/* Quick settings in top corner */}
+      <div className="absolute top-6 right-6 flex items-center gap-3">
+        <button 
+          onClick={toggleLang}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
+        >
+          <Globe className="w-3.5 h-3.5 text-emerald-400" />
+          {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
+        </button>
+        <button 
+          onClick={toggleTheme}
+          className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
+        </button>
+      </div>
+
       {/* Logo */}
-      <div className="flex items-center gap-3 mb-10">
+      <Link href="/" className="flex items-center gap-3 mb-8 hover:opacity-85 transition-opacity">
         <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
           <ShieldCheck className="h-6 w-6 text-emerald-400" />
         </div>
-        <span className="font-bold text-white tracking-wide text-xl">FarmGuard AI</span>
-      </div>
+        <span className="font-bold text-white tracking-wide text-xl">{t.brand}</span>
+      </Link>
 
       {/* Card */}
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-8 shadow-2xl">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="mt-1.5 text-sm text-zinc-500">Start tracking crop health and disease progression today.</p>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white">{t.createAccount}</h1>
+          <p className="mt-1.5 text-sm text-zinc-500">{t.signupDesc}</p>
+        </div>
+
+        {/* Role Selection Switch Cards */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button
+            type="button"
+            onClick={() => setSelectedRole("farmer")}
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all text-left ${
+              selectedRole === "farmer"
+                ? "border-emerald-500 bg-emerald-500/5 text-white"
+                : "border-zinc-800 hover:border-zinc-700 text-zinc-400"
+            }`}
+          >
+            <User className={`h-5 w-5 mb-1.5 ${selectedRole === "farmer" ? "text-emerald-400" : "text-zinc-500"}`} />
+            <span className="text-xs font-bold">{t.farmer}</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setSelectedRole("agrovet")}
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all text-left ${
+              selectedRole === "agrovet"
+                ? "border-emerald-500 bg-emerald-500/5 text-white"
+                : "border-zinc-800 hover:border-zinc-700 text-zinc-400"
+            }`}
+          >
+            <Store className={`h-5 w-5 mb-1.5 ${selectedRole === "agrovet" ? "text-emerald-400" : "text-zinc-500"}`} />
+            <span className="text-xs font-bold">{t.agrovet}</span>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
           {/* Email */}
           <div>
             <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">
-              Email address
+              {t.emailLabel}
             </label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600" aria-hidden="true" />
@@ -88,7 +178,7 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                placeholder="farmer@farmguard.ai"
+                placeholder={selectedRole === 'farmer' ? 'farmer@farmguard.ai' : 'shop@agrovet.co.ke'}
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               />
             </div>
@@ -97,7 +187,7 @@ export default function SignupPage() {
           {/* Password */}
           <div>
             <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">
-              Password
+              {t.passwordLabel}
             </label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600" aria-hidden="true" />
@@ -117,7 +207,7 @@ export default function SignupPage() {
           {/* Confirm Password */}
           <div>
             <label htmlFor="confirmPassword" className="block text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">
-              Confirm password
+              {t.confirmPasswordLabel}
             </label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600" aria-hidden="true" />
@@ -128,7 +218,7 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 autoComplete="new-password"
-                placeholder="Re-enter your password"
+                placeholder="••••••"
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-700 transition-colors focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               />
             </div>
@@ -151,21 +241,21 @@ export default function SignupPage() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Creating account…
+                {t.creatingAcc}
               </>
             ) : (
               <>
                 <UserPlus className="h-4 w-4" aria-hidden="true" />
-                Create Account
+                {t.createAccount}
               </>
             )}
           </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-zinc-600">
-          Already have an account?{" "}
+          {t.haveAccount}{" "}
           <Link href="/login" className="font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
-            Sign in instead <ArrowRight className="inline h-3 w-3" />
+            {t.signinInstead} <ArrowRight className="inline h-3 w-3" />
           </Link>
         </p>
       </div>

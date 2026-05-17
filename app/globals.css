@@ -7,9 +7,97 @@
   --foreground: #d4d4d8; /* zinc-300 */
 }
 
+/* Light mode variable definitions */
+.light {
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #334155; /* slate-700 */
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Calibrated Light Theme Override Matrix */
+.light .bg-zinc-950 {
+  background-color: #f8fafc !important;
+}
+
+.light .bg-zinc-900,
+.light .bg-zinc-900\/50,
+.light .bg-zinc-900\/80,
+.light .bg-zinc-900\/40,
+.light .bg-zinc-900\/20,
+.light .bg-zinc-900\/70,
+.light .bg-zinc-950\/80 {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.02), 0 2px 8px -1px rgba(0, 0, 0, 0.01) !important;
+}
+
+.light .bg-zinc-800,
+.light .bg-zinc-800\/50,
+.light .bg-zinc-800\/30 {
+  background-color: #f1f5f9 !important;
+}
+
+.light .bg-zinc-950\/50 {
+  background-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.light .border-zinc-800,
+.light .border-zinc-800\/50,
+.light .border-zinc-800\/80,
+.light .border-zinc-700,
+.light .border-zinc-700\/50,
+.light .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+.light .text-white,
+.light .text-zinc-100,
+.light .text-zinc-200 {
+  color: #0f172a !important; /* slate-900 */
+}
+
+.light .text-zinc-300,
+.light .text-zinc-400 {
+  color: #334155 !important; /* slate-700 */
+}
+
+.light .text-zinc-500,
+.light .text-zinc-600 {
+  color: #64748b !important; /* slate-500 */
+}
+
+/* Enhancing colors for organic readability in light mode */
+.light .text-emerald-400 {
+  color: #059669 !important; /* forest-green */
+}
+
+.light .bg-emerald-500\/10 {
+  background-color: rgba(5, 150, 105, 0.08) !important;
+}
+
+.light .border-emerald-500\/20 {
+  border-color: rgba(5, 150, 105, 0.15) !important;
+}
+
+.light .bg-emerald-500 {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.light .bg-emerald-500:hover {
+  background-color: #047857 !important;
+}
+
+.light .selection\:bg-emerald-500\/30::selection {
+  background-color: rgba(5, 150, 105, 0.2) !important;
+}
+
+.light .shadow-emerald-950\/10 {
+  box-shadow: 0 4px 20px -2px rgba(5, 150, 105, 0.05) !important;
 }

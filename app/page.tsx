@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { motion, AnimatePresence } from 'framer-motion'
+import { translations } from '@/lib/translations'
 import { 
   ShieldCheck, 
   CloudLightning, 
@@ -17,10 +18,17 @@ import {
   Loader2,
   Info,
   ShieldAlert,
-  ClipboardList
+  ClipboardList,
+  Sun,
+  Moon,
+  LogOut
 } from 'lucide-react'
 
 export default function Home() {
+  const [lang, setLang] = useState<'en' | 'sw'>('en')
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [session, setSession] = useState<any>(null)
+  
   const [isClassifying, setIsClassifying] = useState(false)
   const [results, setResults] = useState<any[] | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -31,6 +39,68 @@ export default function Home() {
     longTermRecommendations: string;
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Language & Theme Initialization
+  useEffect(() => {
+    const savedLang = localStorage.getItem('lang') as 'en' | 'sw'
+    if (savedLang) setLang(savedLang)
+
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light'
+    const finalTheme = savedTheme || 'dark'
+    setTheme(finalTheme)
+    document.documentElement.classList.toggle('light', finalTheme === 'light')
+
+    // Listen to changes from other pages
+    const syncPreferences = () => {
+      const currentLang = localStorage.getItem('lang') as 'en' | 'sw'
+      if (currentLang) setLang(currentLang)
+      const currentTheme = localStorage.getItem('theme') as 'dark' | 'light'
+      if (currentTheme) {
+        setTheme(currentTheme)
+        document.documentElement.classList.toggle('light', currentTheme === 'light')
+      }
+    }
+    window.addEventListener('storage', syncPreferences)
+    window.addEventListener('local-storage', syncPreferences)
+
+    return () => {
+      window.removeEventListener('storage', syncPreferences)
+      window.removeEventListener('local-storage', syncPreferences)
+    }
+  }, [])
+
+  // Check auth session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const toggleLang = () => {
+    const nextLang = lang === 'en' ? 'sw' : 'en'
+    setLang(nextLang)
+    localStorage.setItem('lang', nextLang)
+    window.dispatchEvent(new Event('local-storage'))
+  }
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(nextTheme)
+    localStorage.setItem('theme', nextTheme)
+    document.documentElement.classList.toggle('light', nextTheme === 'light')
+    window.dispatchEvent(new Event('local-storage'))
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.reload()
+  }
+
+  const t = translations[lang]
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -69,21 +139,6 @@ export default function Home() {
     }
   }
 
-
-  useEffect(() => {
-    async function checkSupabase() {
-      const { data, error } = await supabase
-        .storage
-        .from('plant-images')
-        .list()
-
-      console.log('DATA:', data)
-      console.log('ERROR:', error)
-    }
-
-    checkSupabase()
-  }, [])
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -98,20 +153,62 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-300 selection:bg-emerald-500/30 font-sans overflow-x-hidden">
+    <div className="min-h-screen bg-zinc-950 text-zinc-300 selection:bg-emerald-500/30 font-sans overflow-x-hidden transition-colors duration-300">
       
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <div className="h-8 w-8 rounded bg-emerald-500/10 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </div>
-            <span className="font-bold text-white tracking-wide text-lg">FarmGuard AI</span>
+            <span className="font-bold text-white tracking-wide text-lg">{t.brand}</span>
+          </Link>
+          
+          <div className="flex items-center gap-4">
+            {/* Language Switcher */}
+            <button 
+              onClick={toggleLang}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
+            </button>
+
+            {/* Theme Switcher */}
+            <button 
+              onClick={toggleTheme}
+              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
+              title="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
+            </button>
+
+            {session ? (
+              <div className="flex items-center gap-3">
+                <Link 
+                  href="/dashboard" 
+                  className="text-xs font-bold text-zinc-950 bg-emerald-500 hover:bg-emerald-400 px-4 py-2 rounded-lg transition-all"
+                >
+                  {t.dashboard.split(' ')[0]}
+                </Link>
+                <button 
+                  onClick={handleSignOut}
+                  className="p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all"
+                  title={t.signOut}
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Link 
+                href="/login" 
+                className="text-xs font-bold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 hover:text-zinc-950 px-4 py-2 rounded-lg transition-all"
+              >
+                {t.signIn}
+              </Link>
+            )}
           </div>
-          <button className="text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
-            Sign In
-          </button>
         </div>
       </nav>
 
@@ -131,23 +228,23 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              Live Network Active
+              {t.networkActive}
             </div>
             
             <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-tight mb-6">
-              Instant Crop Diagnostics. <br />
+              {t.heroTitle1} <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">
-                Protected Yields.
+                {t.heroTitle2}
               </span>
             </h1>
             
             <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Pairing mobile computer vision with real-time cloud analytics to stop crop failure before it starts. Upload a leaf image, get an instant diagnosis.
+              {t.heroDesc}
             </p>
 
             <div className="flex flex-col md:flex-row items-center justify-center gap-4">
               <Link href="/dashboard" className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(16,185,129,0.4)] hover:shadow-[0_0_60px_-10px_rgba(16,185,129,0.6)] hover:-translate-y-0.5">
-                Launch Live Dashboard
+                {t.dashboard}
                 <MoveRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <button 
@@ -155,7 +252,7 @@ export default function Home() {
                 className="inline-flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-full font-bold text-lg transition-all"
               >
                 <UploadCloud className="w-5 h-5 text-emerald-400" />
-                Quick Diagnostic
+                {t.quickDiagnostic}
               </button>
               <input 
                 type="file" 
@@ -222,14 +319,14 @@ export default function Home() {
                         <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl">
                           <div className="flex items-center gap-3 text-red-400 mb-2">
                             <AlertCircle className="w-5 h-5" />
-                            <h4 className="font-bold">Classification Failed</h4>
+                            <h4 className="font-bold">{t.tryAgain}</h4>
                           </div>
                           <p className="text-red-400/80 text-sm">{uploadError}</p>
                           <button 
                             onClick={() => fileInputRef.current?.click()}
                             className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-all"
                           >
-                            Try Another Image
+                            {t.tryAgain}
                           </button>
                         </div>
                       )}
@@ -237,9 +334,9 @@ export default function Home() {
                       {results && (
                         <div className="space-y-6">
                           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-                            Analysis Complete
+                            {t.analysisComplete}
                           </div>
-                          <h3 className="text-3xl font-bold text-white">Detected Conditions</h3>
+                          <h3 className="text-3xl font-bold text-white">{t.detectedCondition}</h3>
                           
                           <div className="space-y-4">
                             {results.map((res: any, idx: number) => (
@@ -266,25 +363,25 @@ export default function Home() {
                         <motion.div 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="mt-8 space-y-6"
+                          className="mt-8 space-y-6 animate-fade-in"
                         >
                           <div className="bg-zinc-800/30 border border-zinc-800 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
-                              <Info className="w-4 h-4" /> Diagnostic Overview
+                              <Info className="w-4 h-4" /> {t.diagnosticOverview}
                             </h4>
                             <p className="text-zinc-300 text-sm leading-relaxed">{aiAnalysis.diagnosticOverview}</p>
                           </div>
 
                           <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-red-400 font-bold mb-3">
-                              <ShieldAlert className="w-4 h-4" /> Immediate Protocol
+                              <ShieldAlert className="w-4 h-4" /> {t.immediateProtocol}
                             </h4>
                             <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis.immediateProtocol}</p>
                           </div>
 
                           <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
-                              <ClipboardList className="w-4 h-4" /> Long-Term Care
+                              <ClipboardList className="w-4 h-4" /> {t.longTerm}
                             </h4>
                             <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis.longTermRecommendations}</p>
                           </div>
@@ -459,7 +556,7 @@ export default function Home() {
             Ready to secure your harvest?
           </h2>
           <Link href="/dashboard" className="inline-flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(16,185,129,0.4)] hover:-translate-y-1">
-            Enter Workspace
+            {t.workspace}
             <MoveRight className="w-5 h-5" />
           </Link>
         </div>
