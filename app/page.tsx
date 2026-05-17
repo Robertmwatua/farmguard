@@ -157,7 +157,7 @@ export default function Home() {
 
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-3 md:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <div className="h-8 w-8 rounded bg-emerald-500/10 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -169,7 +169,7 @@ export default function Home() {
             {/* Language Switcher */}
             <button
               onClick={toggleLang}
-              className="flex items-center gap-1 px-2 md:px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-[10px] sm:text-xs font-semibold"
+              className="flex items-center gap-1 px-2 md:px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-[10px] md:text-xs font-semibold"
             >
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
               {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
@@ -213,7 +213,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-24 pb-16 md:pt-48 md:pb-32 px-4 md:px-6 overflow-hidden">
+      <section className="relative pt-24 pb-16 md:pt-48 md:pb-32 px-6 overflow-hidden">
         {/* Abstract Background Glows */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none" />
 
@@ -249,8 +249,7 @@ export default function Home() {
               </Link>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 border border-zinc-800 active:scale-95 hover:bg-zinc-800 text-white rounded-full font-bold text-lg transition-all"
-                type="button"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-full font-bold text-lg transition-all"
               >
                 <UploadCloud className="w-5 h-5 text-emerald-400" />
                 {t.quickDiagnostic}
@@ -274,7 +273,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: 40 }}
                 className="mt-20 max-w-5xl mx-auto"
               >
-                <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-[2rem] md:rounded-[2.5rem] p-4 md:p-12 backdrop-blur-xl relative overflow-hidden shadow-2xl">
+                <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-12 backdrop-blur-xl relative overflow-hidden shadow-2xl">
                   {/* Decorative glow */}
                   <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />
 
@@ -292,7 +291,7 @@ export default function Home() {
                         )}
                       </div>
                       {isClassifying && (
-                        <div className="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm flex flex-col items-center justify-center rounded-3xl border border-emerald-500/30 z-20">
+                        <div className="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm flex flex-col items-center justify-center rounded-3xl border border-emerald-500/30">
                           <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mb-4" />
                           <p className="text-emerald-400 font-bold tracking-widest text-sm uppercase animate-pulse">Neural Processing...</p>
                         </div>
@@ -341,9 +340,9 @@ export default function Home() {
 
                           <div className="space-y-4">
                             {results.map((res: any, idx: number) => (
-                              <div key={idx} className="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-4 md:p-5 hover:border-emerald-500/30 transition-all group">
-                                <div className="flex justify-between items-center mb-2 md:mb-3">
-                                  <span className="text-sm md:text-lg font-bold text-zinc-100 capitalize">{res.label.replace(/_/g, ' ')}</span>
+                              <div key={idx} className="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-5 hover:border-emerald-500/30 transition-all group">
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="text-lg font-bold text-zinc-100 capitalize">{res.label.replace(/_/g, ' ')}</span>
                                   <span className="text-emerald-400 font-mono font-bold">{(res.score * 100).toFixed(1)}%</span>
                                 </div>
                                 <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden">
@@ -364,23 +363,23 @@ export default function Home() {
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="mt-6 md:mt-8 space-y-4 md:space-y-6 animate-fade-in"
+                          className="mt-8 space-y-6 animate-fade-in"
                         >
-                          <div className="bg-zinc-800/30 border border-zinc-800 rounded-2xl p-4 md:p-6">
+                          <div className="bg-zinc-800/30 border border-zinc-800 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
                               <Info className="w-4 h-4" /> {t.diagnosticOverview}
                             </h4>
                             <p className="text-zinc-300 text-sm leading-relaxed">{aiAnalysis.diagnosticOverview}</p>
                           </div>
 
-                          <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 md:p-6">
+                          <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-red-400 font-bold mb-3">
                               <ShieldAlert className="w-4 h-4" /> {t.immediateProtocol}
                             </h4>
                             <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{aiAnalysis.immediateProtocol}</p>
                           </div>
 
-                          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 md:p-6">
+                          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6">
                             <h4 className="flex items-center gap-2 text-emerald-400 font-bold mb-3">
                               <ClipboardList className="w-4 h-4" /> {t.longTerm}
                             </h4>

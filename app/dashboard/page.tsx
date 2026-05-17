@@ -21,7 +21,8 @@ import {
   Calendar,
   Plus,
   Activity,
-  CheckSquare
+  CheckSquare,
+  Menu
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
@@ -598,8 +599,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans transition-colors duration-300 font-sans">
 
       {/* Navigation */}
-      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 w-full">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <div className="h-8 w-8 rounded bg-emerald-500/10 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -607,7 +608,7 @@ export default function Dashboard() {
             <span className="font-bold text-white tracking-wide text-lg">{t.brand}</span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <button
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
@@ -623,33 +624,37 @@ export default function Dashboard() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
 
-            <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/teachings" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Academy' : 'Chuo'}
             </Link>
 
-            <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Community' : 'Jamii'}
             </Link>
 
-            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Calendar' : 'Ratiba'}
             </Link>
 
-            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Diary' : 'Shajara'}
             </Link>
 
-            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
             </Link>
 
-            <Link href="/marketplace" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/marketplace" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Marketplace' : 'Soko'}
             </Link>
 
-            <Link href="/agrovets" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+            <Link href="/agrovets" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {t.agrovetConsole.split(' ')[0]}
             </Link>
+
+            <button className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white transition-all">
+              <Menu className="w-5 h-5" />
+            </button>
 
             <button
               onClick={handleSignOut}
@@ -662,16 +667,16 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 overflow-x-hidden">
 
         {/* Header Block */}
-        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between w-full">
           <div>
-            <p className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+            <p className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] md:text-xs font-semibold text-emerald-300">
               {t.center}
             </p>
-            <h1 className="text-3xl md:text-5xl font-bold text-white mb-3">{t.diagCenter}</h1>
-            <p className="max-w-2xl text-zinc-400">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 break-words leading-tight">{t.diagCenter}</h1>
+            <p className="max-w-2xl text-zinc-400 text-sm md:text-base leading-relaxed">
               {t.centerDesc}
             </p>
           </div>
@@ -709,7 +714,7 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 md:p-10 relative overflow-hidden">
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-4 md:p-10 relative overflow-hidden">
               <AnimatePresence mode="wait">
 
                 {/* Camera Modal */}
@@ -728,17 +733,17 @@ export default function Dashboard() {
                       className="w-full max-h-[350px] rounded-xl object-cover bg-black"
                     />
 
-                    <div className="flex gap-4 mt-6">
+                    <div className="flex flex-col sm:flex-row gap-4 mt-6 w-full">
                       <button
                         onClick={capturePhoto}
-                        className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2"
+                        className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
                       >
                         <Camera className="w-5 h-5" />
                         {t.capture}
                       </button>
                       <button
                         onClick={stopCamera}
-                        className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-colors"
+                        className="w-full sm:w-auto px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-colors"
                       >
                         {t.closeCamera}
                       </button>
@@ -753,8 +758,8 @@ export default function Dashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer flex flex-col items-center justify-center min-h-[400px] relative ${isDragging
-                        ? 'border-emerald-500 bg-emerald-500/5'
-                        : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
                       }`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -871,18 +876,18 @@ export default function Dashboard() {
                             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
                             <h4 className="text-lg font-bold text-white mb-1">{t.analysisComplete}</h4>
                             <p className="text-emerald-400 text-sm mb-4">{t.successDesc}</p>
-                            <div className="flex gap-3 justify-center">
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center w-full">
                               {latestScanId && (
                                 <Link
                                   href={`/scan/${latestScanId}`}
-                                  className="group px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg font-bold transition-all shadow-[0_0_25px_-6px_rgba(16,185,129,0.35)] hover:shadow-[0_0_40px_-4px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 active:translate-y-0 text-sm focus:outline-none"
+                                  className="group w-full sm:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg font-bold transition-all shadow-[0_0_25px_-6px_rgba(16,185,129,0.35)] hover:shadow-[0_0_40px_-4px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 active:translate-y-0 text-sm focus:outline-none text-center"
                                 >
                                   {t.viewReport}
                                 </Link>
                               )}
                               <button
                                 onClick={clearSelection}
-                                className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors text-sm"
+                                className="w-full sm:w-auto px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors text-sm"
                               >
                                 {t.newScan}
                               </button>
@@ -935,10 +940,10 @@ export default function Dashboard() {
           <div className="border-b border-zinc-800/80 pb-4 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
             {/* Tabs Trigger Headers */}
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col md:flex-row gap-2 md:gap-4 w-full">
               <button
                 onClick={() => setActiveTab('scans')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'scans' ? 'text-white border-b-2 border-emerald-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
+                className={`pb-2 md:pb-4 px-2 text-lg md:text-xl font-bold tracking-tight transition-all relative text-left ${activeTab === 'scans' ? 'text-white border-l-4 md:border-l-0 md:border-b-2 border-emerald-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
               >
                 <span className="flex items-center gap-2">
@@ -949,7 +954,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'tracker' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                className={`pb-2 md:pb-4 px-2 text-lg md:text-xl font-bold tracking-tight transition-all relative text-left ${activeTab === 'tracker' ? 'text-white border-l-4 md:border-l-0 md:border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
               >
                 <span className="flex items-center gap-2">
@@ -960,7 +965,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => setActiveTab('map')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'map' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                className={`pb-2 md:pb-4 px-2 text-lg md:text-xl font-bold tracking-tight transition-all relative text-left ${activeTab === 'map' ? 'text-white border-l-4 md:border-l-0 md:border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
               >
                 <span className="flex items-center gap-2">
@@ -1236,7 +1241,7 @@ export default function Dashboard() {
                     <div
                       ref={mapContainerRef}
                       id="field-map-container"
-                      className="h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10"
+                      className="h-[300px] md:h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10"
                     />
                   </div>
                 </div>

@@ -496,8 +496,8 @@ export default function TeachingsPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-24 transition-colors duration-300">
 
       {/* Navigation */}
-      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 w-full">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
               <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">{t.backToDashboard}</span>
@@ -528,13 +528,19 @@ export default function TeachingsPage() {
               {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
             </Link>
 
-            <button
-              onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
-            >
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleLang}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
+              </button>
+
+              <button className="lg:hidden p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white transition-all">
+                <Menu className="w-4 h-4" />
+              </button>
+            </div>
 
             <button
               onClick={toggleTheme}
@@ -547,7 +553,7 @@ export default function TeachingsPage() {
       </nav>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 overflow-x-hidden">
 
         {/* Header Block */}
         <div className="mb-12 text-center max-w-3xl mx-auto relative">
