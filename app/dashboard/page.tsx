@@ -26,6 +26,7 @@ import {
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import WeatherWidget from '@/components/WeatherWidget'
+import PWANotificationManager from '@/components/PWANotificationManager'
 import { translations } from '@/lib/translations'
 
 interface TaskItem {
@@ -509,10 +510,15 @@ export default function Dashboard() {
 
       const topResult = data.classification[0]
       const aiAnalysis = data.analysis
+      
+      const plantPart = topResult.label.split('___')[0].replace(/_/g, ' ') || 'Unknown Plant'
+      const diseasePart = topResult.label.split('___')[1] ? topResult.label.split('___')[1].replace(/_/g, ' ') : 'healthy'
+      const formattedDisease = diseasePart.toLowerCase() === 'healthy' ? 'Healthy (No Disease Detected)' : diseasePart
+
       const insertPayload = {
          image_url: publicUrlData.publicUrl,
-         plant_name: topResult.label.split('___')[0].replace(/_/g, ' ') || 'Unknown Plant',
-         disease: topResult.label.replace(/_/g, ' '),
+         plant_name: plantPart,
+         disease: formattedDisease,
          health_status: topResult.label.toLowerCase().includes('healthy') ? 'Optimal' : 'Critical',
          confidence: parseFloat((topResult.score * 100).toFixed(1)),
          recommendation: aiAnalysis.immediateProtocol,
@@ -614,6 +620,26 @@ export default function Dashboard() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
 
+            <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Academy' : 'Chuo'}
+            </Link>
+
+            <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Community' : 'Jamii'}
+            </Link>
+
+            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Calendar' : 'Ratiba'}
+            </Link>
+
+            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Diary' : 'Shajara'}
+            </Link>
+
+            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
+              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+            </Link>
+
             <Link href="/marketplace" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors">
               {lang === 'en' ? 'Marketplace' : 'Soko'}
             </Link>
@@ -661,6 +687,11 @@ export default function Dashboard() {
               {lang === 'en' ? '🏷️ Bidding Marketplace' : '🏷️ Soko la Zabuni'}
             </Link>
           </div>
+        </div>
+
+        {/* PWA Alerts Panel */}
+        <div className="mb-8">
+          <PWANotificationManager lang={lang} />
         </div>
 
         {/* Workspace Layout */}

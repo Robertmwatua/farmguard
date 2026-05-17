@@ -81,6 +81,20 @@ export default function ScanDetails() {
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Scan-to-Tracker Pipeline states
+  const [user, setUser] = useState<any>(null)
+  const [trackerLoading, setTrackerLoading] = useState(false)
+  const [trackerSeeded, setTrackerSeeded] = useState(false)
+
+  // Fetch logged in user
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+      if (currentUser) {
+        setUser(currentUser)
+      }
+    })
+  }, [])
+
   // Sync preferences from storage
   useEffect(() => {
     const savedLang = localStorage.getItem('lang') as 'en' | 'sw'
@@ -182,6 +196,97 @@ export default function ScanDetails() {
       )
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const handleSeedTracker = async () => {
+    if (!user || !data || trackerLoading) return
+    setTrackerLoading(true)
+
+    try {
+      const userId = user.id
+      const plantName = data.plant_name || 'Plant'
+      const isOptimal = data.health_status === 'Optimal'
+
+      // 1. Seed tasks in LocalStorage Care Tracker
+      const savedTasks = localStorage.getItem(`farmguard_tasks_${userId}`)
+      let tasksDict = savedTasks ? JSON.parse(savedTasks) : {}
+
+      // Customized premium tasks based on scan health status
+      const tasksToSeed = isOptimal ? [
+        { id: `t1-${Date.now()}`, text: `Daily morning drip irrigation for ${plantName} (2L)`, completed: false },
+        { id: `t2-${Date.now()}`, text: `Mulch ${plantName} root base with dry straw`, completed: false },
+        { id: `t3-${Date.now()}`, text: `Apply organic compost around ${plantName} canopy border`, completed: false },
+        { id: `t4-${Date.now()}`, text: `Spray cold-pressed Neem Oil at dusk as proactive barrier`, completed: false },
+        { id: `t5-${Date.now()}`, text: `Scout leaves weekly for early insect vectors`, completed: false }
+      ] : [
+        { id: `t1-${Date.now()}`, text: `Isolate and quarantine infected parts of ${plantName}`, completed: false },
+        { id: `t2-${Date.now()}`, text: `Mix 30ml Neem + 5ml organic soap in 5L water and spray leaf surfaces`, completed: false },
+        { id: `t3-${Date.now()}`, text: `Water early morning only to avoid moisture on leaves`, completed: false },
+        { id: `t4-${Date.now()}`, text: `Prune and safely discard diseased leaf branches`, completed: false },
+        { id: `t5-${Date.now()}`, text: `Check surrounding plants daily for disease transmission`, completed: false }
+      ]
+
+      tasksDict[plantName] = tasksToSeed
+      localStorage.setItem(`farmguard_tasks_${userId}`, JSON.stringify(tasksDict))
+
+      // 2. Seed calendar events in Supabase farmer_events
+      const today = new Date()
+      const pad = (n: number) => String(n).padStart(2, '0')
+      
+      const generateDate = (daysAhead: number) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() + daysAhead)
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      }
+
+      const eventsToInsert = [
+        {
+          user_id: userId,
+          title: `💧 Water ${plantName}`,
+          date: generateDate(1),
+          type: 'watering',
+          crop_name: plantName,
+          description: `Early morning deep watering for ${plantName}.`
+        },
+        {
+          user_id: userId,
+          title: `💧 Water ${plantName}`,
+          date: generateDate(3),
+          type: 'watering',
+          crop_name: plantName,
+          description: `Early morning deep watering for ${plantName}.`
+        },
+        {
+          user_id: userId,
+          title: `💧 Water ${plantName}`,
+          date: generateDate(5),
+          type: 'watering',
+          crop_name: plantName,
+          description: `Early morning deep watering for ${plantName}.`
+        },
+        {
+          user_id: userId,
+          title: `🔍 Scout ${plantName} check`,
+          date: generateDate(7),
+          type: 'scouting',
+          crop_name: plantName,
+          description: `Perform full leaf and stem diagnostics for ${plantName} to monitor progress.`
+        }
+      ]
+
+      const { error } = await supabase
+        .from('farmer_events')
+        .insert(eventsToInsert)
+
+      if (error) throw error
+
+      setTrackerSeeded(true)
+    } catch (err) {
+      console.error('Failed to seed tracker & calendar:', err)
+      alert(lang === 'en' ? 'Database connection sync delayed. Ensure migrations are fully applied.' : 'Kusawazisha hifadhidata kumesitishwa. Hakikisha jedwali la farmer_events limewekwa Supabase.')
+    } finally {
+      setTrackerLoading(false)
     }
   }
 
@@ -367,6 +472,26 @@ export default function ScanDetails() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Academy' : 'Chuo'}
+            </Link>
+
+            <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Community' : 'Jamii'}
+            </Link>
+
+            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Calendar' : 'Ratiba'}
+            </Link>
+
+            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Diary' : 'Shajara'}
+            </Link>
+
+            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
+            </Link>
+
             <button 
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
@@ -500,11 +625,23 @@ export default function ScanDetails() {
                   <div className="flex items-center justify-between mb-4 border-b border-zinc-800/60 pb-3">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                        <Droplet className="w-5 h-5 text-emerald-400" />
+                        {data.health_status === 'Optimal' ? (
+                          <Sprout className="w-5 h-5 text-emerald-400" />
+                        ) : (
+                          <Droplet className="w-5 h-5 text-emerald-400" />
+                        )}
                       </div>
                       <div>
-                        <h3 className="font-bold text-white">{t.prescription}</h3>
-                        <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Match</p>
+                        <h3 className="font-bold text-white">
+                          {data.health_status === 'Optimal' 
+                            ? (lang === 'en' ? 'Proactive Upkeep' : 'Utunzaji wa Mmea') 
+                            : t.prescription}
+                        </h3>
+                        <p className="text-xs text-zinc-500 capitalize">
+                          {data.health_status === 'Optimal' 
+                            ? (lang === 'en' ? 'Optimal Upkeep Shield' : 'Hali ya Mmea ni Salama') 
+                            : `${treatmentNeeded} Match`}
+                        </p>
                       </div>
                     </div>
 
@@ -533,37 +670,110 @@ export default function ScanDetails() {
                   </div>
 
                   <div className="text-sm text-zinc-300 leading-relaxed mb-6">
-                    {treatmentNeeded === 'fungicide' && (
+                    {data.health_status === 'Optimal' ? (
                       <p>
                         {lang === 'en' 
-                          ? 'Apply a systemic, broad-spectrum fungicide containing Metalaxyl-M or Mancozeb 80% WP. Dilute at 50g per 20L of water and spray leaf surfaces thoroughly. Repeat every 7-10 days.'
-                          : 'Nyunyizia fungicide yenye Metalaxyl-M au Mancozeb 80% WP. Changanya gramu 50 kwa lita 20 za maji na upulize majani yote. Rudia kila baada ya siku 7-10.'}
+                          ? 'Your crop is in highly optimal condition! To preserve this health, execute deep-root irrigation in early mornings, apply compost rich in trace minerals, ensure weed-free rows, and apply cold-pressed Neem Oil sprays at dusk as a protective organic shield.'
+                          : 'Mmea wako una afya tele kwa sasa! Ili kulinda afya hii, mwagilia maji asubuhi na mapema, changanya mbolea ya samadi kiasili, safisha magugu yote, na upulize mafuta ya mwarobaini kuzuia wadudu waharibifu.'}
                       </p>
-                    )}
-                    {treatmentNeeded === 'insecticide' && (
-                      <p>
-                        {lang === 'en' 
-                          ? 'Apply a premium insecticide containing Emamectin Benzoate 5% SG or Chlorantraniliprole. Direct spray into leaf whorls. Apply early morning or late evening.'
-                          : 'Nyunyizia insecticide yenye Emamectin Benzoate 5% SG au Chlorantraniliprole. Puliza katikati ya majani asubuhi na mapema au jioni.'}
-                      </p>
-                    )}
-                    {treatmentNeeded === 'copper oxychloride' && (
-                      <p>
-                        {lang === 'en' 
-                          ? 'Treat with copper bactericide containing Copper Oxychloride 50% WP. Ensure full canopy coverage. Avoid applying in high temperatures.'
-                          : 'Tibu kwa dawa ya kuzuia bakteria yenye Copper Oxychloride 50% WP. Hakikisha inapulizwa kwenye mmea mzima. Epuka kupuliza wakati wa jua kali.'}
-                      </p>
+                    ) : (
+                      <>
+                        {treatmentNeeded === 'fungicide' && (
+                          <p>
+                            {lang === 'en' 
+                              ? 'Apply a systemic, broad-spectrum fungicide containing Metalaxyl-M or Mancozeb 80% WP. Dilute at 50g per 20L of water and spray leaf surfaces thoroughly. Repeat every 7-10 days.'
+                              : 'Nyunyizia fungicide yenye Metalaxyl-M au Mancozeb 80% WP. Changanya gramu 50 kwa lita 20 za maji na upulize majani yote. Rudia kila baada ya siku 7-10.'}
+                          </p>
+                        )}
+                        {treatmentNeeded === 'insecticide' && (
+                          <p>
+                            {lang === 'en' 
+                              ? 'Apply a premium insecticide containing Emamectin Benzoate 5% SG or Chlorantraniliprole. Direct spray into leaf whorls. Apply early morning or late evening.'
+                              : 'Nyunyizia insecticide yenye Emamectin Benzoate 5% SG au Chlorantraniliprole. Puliza katikati ya majani asubuhi na mapema au jioni.'}
+                          </p>
+                        )}
+                        {treatmentNeeded === 'copper oxychloride' && (
+                          <p>
+                            {lang === 'en' 
+                              ? 'Treat with copper bactericide containing Copper Oxychloride 50% WP. Ensure full canopy coverage. Avoid applying in high temperatures.'
+                              : 'Tibu kwa dawa ya kuzuia bakteria yenye Copper Oxychloride 50% WP. Hakikisha inapulizwa kwenye mmea mzima. Epuka kupuliza wakati wa jua kali.'}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
 
-                  <a 
-                    href="#agrovets"
-                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
-                  >
-                    <Sprout className="w-4 h-4" />
-                    {t.purchaseNow}
-                  </a>
+                  {data.health_status === 'Optimal' ? (
+                    <Link 
+                      href="/teachings"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
+                    >
+                      <Sprout className="w-4 h-4" />
+                      {lang === 'en' ? 'Open Academy Lessons' : 'Fungua Mafunzo ya Kilimo'}
+                    </Link>
+                  ) : (
+                    <a 
+                      href="#agrovets"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
+                    >
+                      <Sprout className="w-4 h-4" />
+                      {t.purchaseNow}
+                    </a>
+                  )}
                 </motion.div>
+
+                {/* Scan-to-Tracker Pipeline Prompt (Feature 8) */}
+                {user && (
+                  <motion.div 
+                    variants={itemVariants}
+                    className="bg-zinc-900/60 border border-zinc-850 p-6 rounded-3xl relative overflow-hidden"
+                  >
+                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/5 blur-[35px] rounded-full pointer-events-none" />
+                    
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <h4 className="font-extrabold text-white text-sm">
+                          {lang === 'en' ? '🔄 Track Crop Operations?' : '🔄 Fuatilia Maendeleo ya Mmea?'}
+                        </h4>
+                        <p className="text-zinc-400 text-xs leading-relaxed">
+                          {lang === 'en'
+                            ? `Seed a dedicated care checklist in your Care Tracker and schedule 3 dynamic early morning watering cycles in your calendar for this ${data.plant_name}.`
+                            : `Hifadhi orodha maalum ya kazi za utunzaji na upange ratiba ya kumwagilia maji mara 3 kwenye kalenda ya ${data.plant_name} huyu.`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      {trackerSeeded ? (
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 px-4 py-3 rounded-2xl">
+                          <ShieldCheck className="w-4 h-4 shrink-0" />
+                          <span>
+                            {lang === 'en' 
+                              ? 'Setup successful! Check your Dashboard Tracker and Farming Calendar.'
+                              : 'Ratiba imewekwa! Angalia Kazi zako na Kalenda yako.'}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleSeedTracker}
+                          disabled={trackerLoading}
+                          className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:bg-zinc-800 disabled:text-zinc-650 border border-emerald-500/20 text-emerald-400 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                        >
+                          {trackerLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          <span>
+                            {lang === 'en'
+                              ? 'Yes, Seed Tracker & Calendar'
+                              : 'Ndio, Weka kwenye Tracker na Kalenda'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
 
               </div>
 
