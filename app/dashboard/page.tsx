@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   UploadCloud, 
@@ -17,12 +17,22 @@ import {
   Globe, 
   Sun, 
   Moon, 
-  LogOut 
+  LogOut,
+  Calendar,
+  Plus,
+  Activity,
+  CheckSquare
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import WeatherWidget from '@/components/WeatherWidget'
 import { translations } from '@/lib/translations'
+
+interface TaskItem {
+  id: string
+  text: string
+  completed: boolean
+}
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null)
@@ -43,6 +53,13 @@ export default function Dashboard() {
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Dashboard Tabs ('scans' | 'tracker')
+  const [activeTab, setActiveTab] = useState<'scans' | 'tracker'>('scans')
+
+  // Adaptive Crop Care Tracker Task lists
+  const [trackerTasks, setTrackerTasks] = useState<Record<string, TaskItem[]>>({})
+  const [customTaskInput, setCustomTaskInput] = useState<Record<string, string>>({})
 
   // Sync lang & theme
   useEffect(() => {
@@ -135,6 +152,68 @@ export default function Dashboard() {
       fetchScans()
     }
   }, [userId, fetchScans])
+
+  // Initialize and persistent local tasks for unique plants
+  useEffect(() => {
+    if (scans.length > 0 && userId) {
+      const uniquePlants = Array.from(new Set(scans.map((s: any) => s.plant_name))) as string[]
+      const savedTasks = localStorage.getItem(`farmguard_tasks_${userId}`)
+      let tasksDict: Record<string, TaskItem[]> = savedTasks ? JSON.parse(savedTasks) : {}
+
+      uniquePlants.forEach((plant) => {
+        if (!tasksDict[plant]) {
+          tasksDict[plant] = [
+            { id: '1', text: lang === 'en' ? 'Apply recommended pesticide or fungicide treatment' : 'Nyunyizia dawa inayopendekezwa ya wadudu/fungi', completed: false },
+            { id: '2', text: lang === 'en' ? 'Prune and safely quarantine spotted foliage' : 'Kata na utenge mbali majani yote yenye madoa', completed: false },
+            { id: '3', text: lang === 'en' ? 'Optimize soil drainage and moisture schedule' : 'Maji ya udongo na mtiririko yaboreshwe shambani', completed: false },
+            { id: '4', text: lang === 'en' ? 'Visual inspection of surrounding healthy rows' : 'Ukaguzi wa macho kwenye mistari ya mimea jirani', completed: false }
+          ]
+        }
+      })
+      setTrackerTasks(tasksDict)
+    }
+  }, [scans, userId, lang])
+
+  const toggleTask = (plant: string, taskId: string) => {
+    if (!userId) return
+    const updated = {
+      ...trackerTasks,
+      [plant]: trackerTasks[plant].map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
+    }
+    setTrackerTasks(updated)
+    localStorage.setItem(`farmguard_tasks_${userId}`, JSON.stringify(updated))
+  }
+
+  const addCustomTask = (plant: string) => {
+    if (!userId) return
+    const text = customTaskInput[plant]?.trim()
+    if (!text) return
+
+    const newTask: TaskItem = {
+      id: Date.now().toString(),
+      text,
+      completed: false
+    }
+
+    const updated = {
+      ...trackerTasks,
+      [plant]: [...(trackerTasks[plant] || []), newTask]
+    }
+
+    setTrackerTasks(updated)
+    localStorage.setItem(`farmguard_tasks_${userId}`, JSON.stringify(updated))
+    setCustomTaskInput(prev => ({ ...prev, [plant]: '' }))
+  }
+
+  const deleteTask = (plant: string, taskId: string) => {
+    if (!userId) return
+    const updated = {
+      ...trackerTasks,
+      [plant]: trackerTasks[plant].filter(t => t.id !== taskId)
+    }
+    setTrackerTasks(updated)
+    localStorage.setItem(`farmguard_tasks_${userId}`, JSON.stringify(updated))
+  }
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault()
@@ -380,6 +459,28 @@ export default function Dashboard() {
     return { color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/20', bar: 'bg-red-400' }
   }
 
+  // Parse scans to extract unique crops and their latest conditions
+  const trackedCrops = useMemo(() => {
+    const cropsMap: Record<string, any> = {}
+    
+    scans.forEach((scan) => {
+      if (!cropsMap[scan.plant_name]) {
+        // Since scans are ordered by created_at DESC, first scan we see is the latest!
+        cropsMap[scan.plant_name] = {
+          plantName: scan.plant_name,
+          diseaseSpotted: scan.disease,
+          healthStatus: scan.health_status || 'Critical',
+          confidence: scan.confidence,
+          lastScanned: new Date(scan.created_at).toLocaleDateString(),
+          imageUrl: scan.image_url,
+          id: scan.id
+        }
+      }
+    })
+
+    return Object.values(cropsMap)
+  }, [scans])
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans transition-colors duration-300">
       
@@ -394,7 +495,6 @@ export default function Dashboard() {
           </Link>
           
           <div className="flex items-center gap-4">
-            {/* Language Switcher */}
             <button 
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
@@ -403,7 +503,6 @@ export default function Dashboard() {
               {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
             </button>
 
-            {/* Theme Switcher */}
             <button 
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
@@ -447,8 +546,8 @@ export default function Dashboard() {
             <a href="#field-intel" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
               {t.weather}
             </a>
-            <a href="#history" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
-              {t.recentScans.split(' ')[1] || 'History'}
+            <a href="#management" className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:border-emerald-400/30 hover:text-emerald-300">
+              {lang === 'en' ? 'Crop Hub' : 'Kitovu cha Mazao'}
             </a>
           </div>
         </div>
@@ -468,14 +567,14 @@ export default function Dashboard() {
             <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 md:p-10 relative overflow-hidden">
               <AnimatePresence mode="wait">
                 
-                {/* ── CAMERA LIVE MODAL STREAM ── */}
+                {/* Camera Modal */}
                 {isCameraActive ? (
                   <motion.div
                     key="camera-stream-zone"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="border border-emerald-500/20 rounded-2xl p-6 bg-zinc-950 flex flex-col items-center justify-center min-h-[400px] relative"
+                    className="border border-emerald-500/20 rounded-2xl p-6 bg-zinc-950 flex flex-col items-center justify-center min-h-[400px] relative animate-fade-in"
                   >
                     <video 
                       ref={videoRef} 
@@ -502,7 +601,7 @@ export default function Dashboard() {
                   </motion.div>
                 ) : !preview ? (
                   
-                  /* ── NORMAL UPLOAD ZONE ── */
+                  /* Normal Upload zone */
                   <motion.div
                     key="upload-zone"
                     initial={{ opacity: 0, y: 10 }}
@@ -534,14 +633,13 @@ export default function Dashboard() {
                     <p className="text-zinc-400 mb-6">{t.browse}</p>
                     
                     <div className="flex gap-3 mb-6 relative z-20">
-                      {/* Active Camera trigger */}
                       <button 
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           startCamera()
                         }}
-                        className="px-5 py-2.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                        className="px-5 py-2.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold transition-all flex items-center gap-2 animate-pulse"
                       >
                         <Camera className="w-4 h-4" />
                         {t.takePhoto}
@@ -555,7 +653,7 @@ export default function Dashboard() {
                   </motion.div>
                 ) : (
                   
-                  /* ── IMAGE PREVIEW & PROCESS ── */
+                  /* Image preview & analysis actions */
                   <motion.div
                     key="preview-zone"
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -625,7 +723,7 @@ export default function Dashboard() {
                         )}
 
                         {status === 'success' && (
-                          <div className="p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                          <div className="p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center animate-fade-in">
                             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
                             <h4 className="text-lg font-bold text-white mb-1">{t.analysisComplete}</h4>
                             <p className="text-emerald-400 text-sm mb-4">{t.successDesc}</p>
@@ -633,7 +731,7 @@ export default function Dashboard() {
                               {latestScanId && (
                                 <Link 
                                   href={`/scan/${latestScanId}`}
-                                  className="group px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg font-bold transition-all shadow-[0_0_25px_-6px_rgba(16,185,129,0.35)] hover:shadow-[0_0_40px_-4px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 active:translate-y-0 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
+                                  className="group px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg font-bold transition-all shadow-[0_0_25px_-6px_rgba(16,185,129,0.35)] hover:shadow-[0_0_40px_-4px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 active:translate-y-0 text-sm focus:outline-none"
                                 >
                                   {t.viewReport}
                                 </Link>
@@ -688,96 +786,277 @@ export default function Dashboard() {
           </aside>
         </div>
 
-        {/* Scan History Section */}
-        <div id="history" className="mt-16 scroll-mt-24">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-                <History className="w-5 h-5 text-emerald-400" />
-                {t.recentScans}
-              </h2>
-              <p className="text-sm text-zinc-400">{t.historyDesc}</p>
-            </div>
-            <div className="flex items-center gap-4">
+        {/* ── Multi-Tab Management Hub: Recent Scans vs Adaptive Care Tracker ── */}
+        <div id="management" className="mt-16 scroll-mt-24">
+          <div className="border-b border-zinc-800/80 pb-4 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            
+            {/* Tabs Trigger Headers */}
+            <div className="flex gap-4">
               <button 
-                onClick={handleClearHistory}
-                className="text-zinc-500 hover:text-red-400 text-sm font-medium transition-colors px-3 py-1 rounded-lg border border-zinc-800 hover:border-red-400/20"
+                onClick={() => setActiveTab('scans')}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
+                  activeTab === 'scans' ? 'text-white border-b-2 border-emerald-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
               >
-                {t.clearHistory}
+                <span className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-emerald-400" />
+                  {t.recentScans}
+                </span>
               </button>
-              <button className="text-emerald-400 hover:text-emerald-300 text-sm font-medium flex items-center gap-1 transition-colors">
-                {t.viewAll} <ChevronRight className="w-4 h-4" />
+              
+              <button 
+                onClick={() => setActiveTab('tracker')}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
+                  activeTab === 'tracker' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <CheckSquare className="w-5 h-5 text-emerald-400 animate-pulse" />
+                  {lang === 'en' ? 'Adaptive Crop Care' : 'Mratibu wa Mazao'}
+                </span>
               </button>
             </div>
+
+            {activeTab === 'scans' && (
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={handleClearHistory}
+                  className="text-zinc-500 hover:text-red-400 text-sm font-medium transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-red-400/20"
+                >
+                  {t.clearHistory}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="grid gap-4">
-            {scans.length === 0 ? (
-              <div className="text-center p-8 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 text-zinc-500">
-                {t.noScans}
-              </div>
-            ) : scans.map((scan, i) => {
-              const styles = getStyleForHealth(scan.health_status || 'Moderate')
-              
-              return (
-                <Link href={`/scan/${scan.id}`} key={scan.id}>
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-colors group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-5">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${styles.bg} ${styles.border}`}>
-                        <Leaf className={`w-6 h-6 ${styles.color}`} />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">{scan.plant_name}</h3>
-                        <p className="text-zinc-400 text-sm">{new Date(scan.created_at).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-12 w-full md:w-auto">
-                        <div>
-                          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-1">{t.diagnosis}</p>
-                          <p className="text-zinc-200 font-medium">{scan.disease}</p>
+          <AnimatePresence mode="wait">
+            
+            {/* ── TAB 1: RECENT SCANS LIST ── */}
+            {activeTab === 'scans' ? (
+              <motion.div 
+                key="tab-scans"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="grid gap-4"
+              >
+                {scans.length === 0 ? (
+                  <div className="text-center p-8 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 text-zinc-500">
+                    {t.noScans}
+                  </div>
+                ) : scans.map((scan, i) => {
+                  const styles = getStyleForHealth(scan.health_status || 'Moderate')
+                  
+                  return (
+                    <Link href={`/scan/${scan.id}`} key={scan.id}>
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-5">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${styles.bg} ${styles.border}`}>
+                            <Leaf className={`w-6 h-6 ${styles.color}`} />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">{scan.plant_name}</h3>
+                            <p className="text-zinc-400 text-sm">{new Date(scan.created_at).toLocaleDateString()}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-1">{lang === 'en' ? 'Health Status' : 'Hali ya Afya'}</p>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles.bg} ${styles.border} ${styles.color}`}>
-                            {scan.health_status}
+
+                        <div className="flex items-center gap-4">
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-12 w-full md:w-auto">
+                            <div>
+                              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-1">{t.diagnosis}</p>
+                              <p className="text-zinc-200 font-medium text-xs md:text-sm">{scan.disease}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-1">{lang === 'en' ? 'Health Status' : 'Hali ya Afya'}</p>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles.bg} ${styles.border} ${styles.color}`}>
+                                {scan.health_status}
+                              </span>
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                              <div className="flex justify-between items-end mb-1">
+                                <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{t.confidence}</p>
+                                <span className="text-xs font-bold text-zinc-300">{scan.confidence}%</span>
+                              </div>
+                              <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${scan.confidence}%` }}
+                                  transition={{ duration: 1, delay: 0.2 + (i * 0.05) }}
+                                  className={`h-full rounded-full ${styles.bar}`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <button 
+                            onClick={(e) => handleDelete(e, scan.id)}
+                            className="p-2 hover:bg-red-500/10 text-zinc-600 hover:text-red-400 rounded-lg transition-colors group-hover:opacity-100 md:opacity-0"
+                            title="Delete scan"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    </Link>
+                  )
+                })}
+              </motion.div>
+            ) : (
+              
+              /* ── TAB 2: ADAPTIVE CROP CARE TRACKER HUB ── */
+              <motion.div 
+                key="tab-tracker"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="grid gap-8 lg:grid-cols-2"
+              >
+                {trackedCrops.length === 0 ? (
+                  <div className="col-span-2 text-center p-8 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 text-zinc-500">
+                    {lang === 'en' ? 'Perform leaf diagnostic scans first to initialize adaptive trackers.' : 'Fanya uchunguzi wa majani kwanza ili kuanzisha mratibu wa mazao.'}
+                  </div>
+                ) : trackedCrops.map((crop) => {
+                  const styles = getStyleForHealth(crop.healthStatus)
+                  
+                  // Calculate dynamic checking schedule based on latest scan condition
+                  const isCritical = crop.healthStatus === 'Critical'
+                  const isModerate = crop.healthStatus === 'Moderate'
+                  const scheduleLabel = isCritical
+                    ? (lang === 'en' ? '🔴 URGENT DAILY CHECK REQUIRED' : '🔴 UCHUNGUZI WA HARAKA KILA SIKU')
+                    : isModerate
+                      ? (lang === 'en' ? '🟡 SEMI-WEEKLY scouting (3-day cycle)' : '🟡 UKAGUZI KILA SIKU 3')
+                      : (lang === 'en' ? '🟢 WEEKLY VISUAL SCOUTING (7-day cycle)' : '🟢 UKAGUZI KILA BAADA YA SIKU 7')
+
+                  const nextCheckDate = isCritical ? 'Tomorrow' : isModerate ? 'In 2 Days' : 'In 6 Days'
+                  const nextCheckLabel = lang === 'en' ? `Next Scouting: ${nextCheckDate}` : `Ukaguzi Ujao: ${nextCheckDate === 'Tomorrow' ? 'Kesho' : nextCheckDate === 'In 2 Days' ? 'Siku 2' : 'Siku 6'}`
+
+                  // Calculate task checklist completion rate
+                  const tasks = trackerTasks[crop.plantName] || []
+                  const totalTasks = tasks.length
+                  const completedTasks = tasks.filter(t => t.completed).length
+                  const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+                  return (
+                    <motion.div 
+                      key={crop.plantName}
+                      className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 flex flex-col justify-between hover:border-emerald-500/20 transition-all shadow-xl"
+                    >
+                      {/* Top Header info */}
+                      <div>
+                        <div className="flex items-center justify-between pb-4 border-b border-zinc-800/60 mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl overflow-hidden border border-zinc-800 shrink-0 bg-zinc-950">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={crop.imageUrl} alt={crop.plantName} className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-white text-lg">{crop.plantName}</h3>
+                              <p className="text-xs text-zinc-500">{lang === 'en' ? 'Last spotted:' : 'Uchunguzi wa mwisho:'} {crop.diseaseSpotted}</p>
+                            </div>
+                          </div>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles.bg} ${styles.border} ${styles.color}`}>
+                            {crop.healthStatus}
                           </span>
                         </div>
-                        <div className="col-span-2 md:col-span-1">
-                          <div className="flex justify-between items-end mb-1">
-                            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{t.confidence}</p>
-                            <span className="text-xs font-bold text-zinc-300">{scan.confidence}%</span>
+
+                        {/* Adaptive Scheduler Widget */}
+                        <div className="bg-zinc-950/80 border border-zinc-800/60 rounded-2xl p-4 mb-6">
+                          <div className="flex items-start gap-3">
+                            <Calendar className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                            <div>
+                              <h4 className="text-sm font-bold text-white mb-1 uppercase tracking-wide text-xs">{lang === 'en' ? 'Adaptive Scouting Protocol' : 'Utaratibu wa Ukaguzi'}</h4>
+                              <p className="text-xs text-zinc-300 mb-2 font-semibold">{scheduleLabel}</p>
+                              <div className="flex gap-2">
+                                <span className="inline-block text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                                  {nextCheckLabel}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                        </div>
+
+                        {/* Care Checklist progress header */}
+                        <div className="mb-4">
+                          <div className="flex justify-between items-end mb-2 text-xs">
+                            <span className="text-zinc-400 font-semibold uppercase tracking-wider">{lang === 'en' ? 'Care Checklist Protocol' : 'Orodha ya Kazi'}</span>
+                            <span className="text-emerald-400 font-bold">{percentage}% Completed</span>
+                          </div>
+                          <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden shadow-inner">
                             <motion.div 
                               initial={{ width: 0 }}
-                              animate={{ width: `${scan.confidence}%` }}
-                              transition={{ duration: 1, delay: 0.2 + (i * 0.1) }}
-                              className={`h-full rounded-full ${styles.bar}`}
+                              animate={{ width: `${percentage}%` }}
+                              className="h-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] rounded-full transition-all duration-300"
                             />
                           </div>
                         </div>
+
+                        {/* Action checklist */}
+                        <div className="space-y-2 mb-6">
+                          {tasks.map((task) => (
+                            <div 
+                              key={task.id}
+                              onClick={() => toggleTask(crop.plantName, task.id)}
+                              className="flex items-start justify-between gap-3 p-3 bg-zinc-950/40 hover:bg-zinc-950/80 border border-zinc-800/40 rounded-xl cursor-pointer select-none transition-colors group"
+                            >
+                              <div className="flex items-start gap-3">
+                                <input 
+                                  type="checkbox"
+                                  checked={task.completed}
+                                  onChange={() => {}} // toggled on container div click
+                                  className="mt-0.5 accent-emerald-400"
+                                />
+                                <span className={`text-xs ${task.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>
+                                  {task.text}
+                                </span>
+                              </div>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteTask(crop.plantName, task.id)
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 hover:text-red-400 transition-opacity"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      
-                      <button 
-                        onClick={(e) => handleDelete(e, scan.id)}
-                        className="p-2 hover:bg-red-500/10 text-zinc-600 hover:text-red-400 rounded-lg transition-colors group-hover:opacity-100 md:opacity-0"
-                        title="Delete scan"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </motion.div>
-                </Link>
-              )
-            })}
-          </div>
+
+                      {/* Custom Chore Input Form */}
+                      <div className="flex gap-2 border-t border-zinc-800/60 pt-4 mt-auto">
+                        <input 
+                          type="text"
+                          value={customTaskInput[crop.plantName] || ''}
+                          onChange={(e) => setCustomTaskInput({ ...customTaskInput, [crop.plantName]: e.target.value })}
+                          placeholder={lang === 'en' ? "Schedule new localized chore..." : "Panga kazi mpya hapa..."}
+                          className="flex-1 bg-zinc-950 border border-zinc-800 text-xs text-white rounded-xl py-2 px-3 focus:outline-none focus:border-emerald-500/40"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              addCustomTask(crop.plantName)
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => addCustomTask(crop.plantName)}
+                          className="p-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl font-bold transition-all shrink-0"
+                          title="Schedule Custom Chore"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
     </div>

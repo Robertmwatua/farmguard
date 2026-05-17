@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ShieldCheck, 
   ArrowLeft, 
@@ -16,9 +16,13 @@ import {
   Globe,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  Bot,
+  Send,
+  Mic,
+  MessageSquare
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import WeatherWidget from '@/components/WeatherWidget'
 import NearbyAgrovets from '@/components/NearbyAgrovets'
@@ -61,6 +65,18 @@ export default function ScanDetails() {
   // Multi-language & Theme support
   const [lang, setLang] = useState<'en' | 'sw'>('en')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+
+  // AI Copilot Summary state
+  const [summary, setSummary] = useState<string>('')
+  const [summaryLoading, setSummaryLoading] = useState<boolean>(true)
+
+  // AI Copilot Chat state
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'bot'; content: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   // Sync preferences from storage
   useEffect(() => {
@@ -114,7 +130,7 @@ export default function ScanDetails() {
   }, [id])
 
   const fetchScan = async (scanId: string) => {
-    const { data: dbData, error } = await supabase
+    const { data: dbData } = await supabase
       .from('scans')
       .select('*')
       .eq('id', scanId)
@@ -125,6 +141,116 @@ export default function ScanDetails() {
     }
     setLoading(false)
   }
+
+  // Fetch Point-form Summary from Gemini when scan data loads
+  useEffect(() => {
+    if (data) {
+      void fetchSummary()
+      
+      const welcome = lang === 'en'
+        ? `Hello! I am your AI Agronomist Copilot. I have analyzed this leaf. Let me know if you have questions about treating this ${data.plant_name}!`
+        : `Habari! Mimi ni Copilot wako wa AI. Nimechunguza jani hili. Nifahamishe kama una maswali kuhusu kutibu ${data.plant_name} huyu!`
+      
+      setChatMessages([
+        { role: 'bot', content: welcome }
+      ])
+    }
+  }, [data, lang])
+
+  const fetchSummary = async () => {
+    try {
+      setSummaryLoading(true)
+      const res = await fetch('/api/scan-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plantName: data.plant_name,
+          disease: data.disease,
+          confidence: data.confidence,
+          healthStatus: data.health_status
+        })
+      })
+      const payload = await res.json()
+      setSummary(payload.summary)
+    } catch {
+      setSummary(lang === 'en'
+        ? "- Observation: Pathological leaf spots identified.\n- Cause: Environmental spore deposits.\n- Step: Apply copper or mancozeb coverage immediately.\n- Monitor: Scout nearby plants daily."
+        : "- Uchunguzi: Madoa ya ugonjwa yamegunduliwa kwenye jani.\n- Chanzo: Unyevu mwingi au upepo shambani.\n- Hatua: Puliza copper au mancozeb mara moja.\n- Chunguza: Angalia mimea ya jirani kila siku."
+      )
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!chatInput.trim() || chatLoading) return
+
+    const userMsg = chatInput.trim()
+    setChatInput('')
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }])
+    setChatLoading(true)
+
+    try {
+      const res = await fetch('/api/chat/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plantName: data.plant_name,
+          disease: data.disease,
+          confidence: data.confidence,
+          healthStatus: data.health_status,
+          recommendation: data.recommendation,
+          messages: chatMessages.concat({ role: 'user', content: userMsg }).map(m => ({
+            role: m.role,
+            content: m.content
+          }))
+        })
+      })
+      const payload = await res.json()
+      setChatMessages(prev => [...prev, { role: 'bot', content: payload.content }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? 'Connection dropped. Please try again.' : 'Hitilafu ya mtandao. Tafadhali jaribu tena.' }])
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  // Voice Recognition inside scan chat
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert(lang === 'en' ? 'Speech recognition not supported.' : 'Utambuzi wa sauti hauhimiliwi.')
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
+    }
+
+    const rec = new SpeechRecognition()
+    rec.continuous = false
+    rec.interimResults = false
+    rec.lang = lang === 'sw' ? 'sw-KE' : 'en-US'
+
+    rec.onstart = () => setIsListening(true)
+    rec.onerror = () => setIsListening(false)
+    rec.onend = () => setIsListening(false)
+
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript
+      setChatInput(transcript)
+    }
+
+    recognitionRef.current = rec
+    rec.start()
+  }
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -188,7 +314,6 @@ export default function ScanDetails() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Language Switcher */}
             <button 
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
@@ -197,7 +322,6 @@ export default function ScanDetails() {
               {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
             </button>
 
-            {/* Theme Switcher */}
             <button 
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
@@ -205,7 +329,6 @@ export default function ScanDetails() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
             </button>
 
-            {/* Sign out */}
             <button 
               onClick={handleSignOut}
               className="p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all flex items-center gap-2"
@@ -252,166 +375,283 @@ export default function ScanDetails() {
           </div>
         </div>
 
+        {/* Dynamic 3-Column Grounded Workspace */}
         <motion.div 
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid lg:grid-cols-12 gap-8"
+          className="grid lg:grid-cols-[1fr_380px] gap-8"
         >
           
-          {/* Left Column: Image & High-level Stats */}
-          <div className="lg:col-span-5 space-y-6">
-            <motion.div variants={itemVariants} className="relative aspect-[4/3] rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={data.image_url} alt={data.plant_name} className="w-full h-full object-cover" />
-              <div className="absolute top-4 right-4">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-md bg-zinc-950/50 ${styles.border} ${styles.color}`}>
-                  {data.health_status}
-                </span>
+          {/* Left Panel: Integrated Scans, Summaries, and Technical Pathology (lg:col-span-8 equivalent) */}
+          <div className="space-y-6">
+            
+            <div className="grid md:grid-cols-2 gap-6 items-start">
+              
+              {/* Left Column: Image and High-level Stats */}
+              <div className="space-y-6">
+                <motion.div variants={itemVariants} className="relative aspect-[4/3] rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900 shadow-xl">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={data.image_url} alt={data.plant_name} className="w-full h-full object-cover" />
+                  <div className="absolute top-4 right-4">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-md bg-zinc-950/50 ${styles.border} ${styles.color}`}>
+                      {data.health_status}
+                    </span>
+                  </div>
+                </motion.div>
+
+                <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6">
+                  <h1 className="text-3xl font-extrabold text-white mb-2">{data.plant_name}</h1>
+                  <p className="text-zinc-400 mb-6 flex items-center gap-2 text-sm">
+                    <Activity className="w-4 h-4" /> {lang === 'en' ? 'Scanned' : 'Ilichunguzwa'} {new Date(data.created_at).toLocaleString()}
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-3 border-b border-zinc-800/50 text-sm">
+                      <span className="text-zinc-500 font-medium">{t.detectedCondition}</span>
+                      <span className={`font-bold ${styles.color}`}>{data.disease}</span>
+                    </div>
+                    
+                    <div className="pt-2">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="text-zinc-500 font-medium">{t.confidence}</span>
+                        <span className="text-sm font-bold text-white">{data.confidence}%</span>
+                      </div>
+                      <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${data.confidence}%` }}
+                          transition={{ duration: 1, delay: 0.5 }}
+                          className={`h-full rounded-full ${styles.bar}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Medicine Advice Card */}
+                <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-emerald-950/10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                      <Droplet className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white">{t.prescription}</h3>
+                      <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Match</p>
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-zinc-300 leading-relaxed mb-6">
+                    {treatmentNeeded === 'fungicide' && (
+                      <p>
+                        {lang === 'en' 
+                          ? 'Apply a systemic, broad-spectrum fungicide containing Metalaxyl-M or Mancozeb 80% WP. Dilute at 50g per 20L of water and spray leaf surfaces thoroughly. Repeat every 7-10 days.'
+                          : 'Nyunyizia fungicide yenye Metalaxyl-M au Mancozeb 80% WP. Changanya gramu 50 kwa lita 20 za maji na upulize majani yote. Rudia kila baada ya siku 7-10.'}
+                      </p>
+                    )}
+                    {treatmentNeeded === 'insecticide' && (
+                      <p>
+                        {lang === 'en' 
+                          ? 'Apply a premium insecticide containing Emamectin Benzoate 5% SG or Chlorantraniliprole. Direct spray into leaf whorls. Apply early morning or late evening.'
+                          : 'Nyunyizia insecticide yenye Emamectin Benzoate 5% SG au Chlorantraniliprole. Puliza katikati ya majani asubuhi na mapema au jioni.'}
+                      </p>
+                    )}
+                    {treatmentNeeded === 'copper oxychloride' && (
+                      <p>
+                        {lang === 'en' 
+                          ? 'Treat with copper bactericide containing Copper Oxychloride 50% WP. Ensure full canopy coverage. Avoid applying in high temperatures.'
+                          : 'Tibu kwa dawa ya kuzuia bakteria yenye Copper Oxychloride 50% WP. Hakikisha inapulizwa kwenye mmea mzima. Epuka kupuliza wakati wa jua kali.'}
+                      </p>
+                    )}
+                  </div>
+
+                  <a 
+                    href="#agrovets"
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
+                  >
+                    <Sprout className="w-4 h-4" />
+                    {t.purchaseNow}
+                  </a>
+                </motion.div>
+
               </div>
-            </motion.div>
 
-            <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6">
-              <h1 className="text-3xl font-extrabold text-white mb-2">{data.plant_name}</h1>
-              <p className="text-zinc-400 mb-6 flex items-center gap-2 text-sm">
-                <Activity className="w-4 h-4" /> {lang === 'en' ? 'Scanned' : 'Ilichunguzwa'} {new Date(data.created_at).toLocaleString()}
-              </p>
-
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-3 border-b border-zinc-800/50 text-sm">
-                  <span className="text-zinc-500 font-medium">{t.detectedCondition}</span>
-                  <span className={`font-bold ${styles.color}`}>{data.disease}</span>
-                </div>
+              {/* Right Column: Detailed Analysis text cards */}
+              <div className="space-y-6">
                 
-                <div className="pt-2">
-                  <div className="flex justify-between items-end mb-2">
-                    <span className="text-zinc-500 font-medium">{t.confidence}</span>
-                    <span className="text-sm font-bold text-white">{data.confidence}%</span>
+                {/* Farmer Summary */}
+                <motion.div id="summary" variants={itemVariants} className="scroll-mt-28 bg-emerald-500/10 border border-emerald-400/20 rounded-3xl p-8 shadow-sm">
+                  <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
+                    <ListChecks className="w-5 h-5 text-emerald-400" />
+                    {t.quickSummary}
+                  </h2>
+                  {farmerSummaryItems.length > 0 ? (
+                    <ul className="space-y-3">
+                      {farmerSummaryItems.map((item, index) => (
+                        <li key={index} className="flex gap-3 text-zinc-200 leading-relaxed text-sm">
+                          <span className="mt-1.5 h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-zinc-300 leading-relaxed text-sm">
+                      {t.quickSummaryDesc}
+                    </p>
+                  )}
+                </motion.div>
+                
+                {/* Explanation */}
+                <motion.div id="overview" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Info className="w-5 h-5 text-emerald-400" />
+                    {t.diagnosticOverview}
+                  </h2>
+                  <p className="text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
+                    {data.diagnostic_overview || `This is a dynamically generated report for the ${data.plant_name} crop indicating signs of ${data.disease}. Continuous monitoring and appropriate intervention based on these findings is strongly advised.`}
+                  </p>
+                </motion.div>
+
+                {/* Treatments */}
+                <motion.div id="treatment" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-5">
+                    <ShieldAlert className="w-32 h-32 text-white" />
                   </div>
-                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${data.confidence}%` }}
-                      transition={{ duration: 1, delay: 0.5 }}
-                      className={`h-full rounded-full ${styles.bar}`}
-                    />
+                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2 relative z-10">
+                    <Droplet className="w-5 h-5 text-emerald-400" />
+                    {t.immediateProtocol}
+                  </h2>
+                  <div className="space-y-4 relative z-10 text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
+                    {data.recommendation}
                   </div>
-                </div>
-              </div>
-            </motion.div>
+                </motion.div>
 
-            {/* Medicine Advice Card */}
-            <motion.div variants={itemVariants} className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-emerald-950/10">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                <ShieldCheck className="w-24 h-24 text-emerald-400" />
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                  <Droplet className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white">{t.prescription}</h3>
-                  <p className="text-xs text-zinc-500 capitalize">{treatmentNeeded} Match</p>
-                </div>
+                {/* Recommendations */}
+                <motion.div id="prevention" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8">
+                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Sprout className="w-5 h-5 text-emerald-400" />
+                    {t.longTerm}
+                  </h2>
+                  <div className="space-y-4 text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
+                    {data.long_term_recommendations || "Maintain field monitoring and optimize irrigation schedules to avoid crop stress."}
+                  </div>
+                </motion.div>
+
               </div>
 
-              <div className="text-sm text-zinc-300 leading-relaxed mb-6">
-                {treatmentNeeded === 'fungicide' && (
-                  <p>
-                    {lang === 'en' 
-                      ? 'Apply a systemic, broad-spectrum fungicide containing Metalaxyl-M or Mancozeb 80% WP. Dilute at 50g per 20L of water and spray leaf surfaces thoroughly. Repeat every 7-10 days.'
-                      : 'Nyunyizia fungicide yenye Metalaxyl-M au Mancozeb 80% WP. Changanya gramu 50 kwa lita 20 za maji na upulize majani yote. Rudia kila baada ya siku 7-10.'}
-                  </p>
-                )}
-                {treatmentNeeded === 'insecticide' && (
-                  <p>
-                    {lang === 'en' 
-                      ? 'Apply a premium insecticide containing Emamectin Benzoate 5% SG or Chlorantraniliprole. Direct spray into leaf whorls. Apply early morning or late evening.'
-                      : 'Nyunyizia insecticide yenye Emamectin Benzoate 5% SG au Chlorantraniliprole. Puliza katikati ya majani asubuhi na mapema au jioni.'}
-                  </p>
-                )}
-                {treatmentNeeded === 'copper oxychloride' && (
-                  <p>
-                    {lang === 'en' 
-                      ? 'Treat with copper bactericide containing Copper Oxychloride 50% WP. Ensure full canopy coverage. Avoid applying in high temperatures.'
-                      : 'Tibu kwa dawa ya kuzuia bakteria yenye Copper Oxychloride 50% WP. Hakikisha inapulizwa kwenye mmea mzima. Epuka kupuliza wakati wa jua kali.'}
-                  </p>
-                )}
-              </div>
-
-              <a 
-                href="#agrovets"
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.35)] focus:outline-none"
-              >
-                <Sprout className="w-4 h-4" />
-                {t.purchaseNow}
-              </a>
-            </motion.div>
+            </div>
 
           </div>
 
-          {/* Right Column: Detailed Analysis */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* Right Panel Sidebar: 🤖 AI SCAN COPILOT WIDGET */}
+          <aside className="space-y-6">
             
-            {/* Farmer Summary */}
-            <motion.div id="summary" variants={itemVariants} className="scroll-mt-28 bg-emerald-500/10 border border-emerald-400/20 rounded-3xl p-8">
-              <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
-                <ListChecks className="w-5 h-5 text-emerald-400" />
-                {t.quickSummary}
-              </h2>
-              {farmerSummaryItems.length > 0 ? (
-                <ul className="space-y-3">
-                  {farmerSummaryItems.map((item, index) => (
-                    <li key={index} className="flex gap-3 text-zinc-200 leading-relaxed text-sm">
-                      <span className="mt-1.5 h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+            {/* 🤖 Dynamic Point Summary Panel */}
+            <motion.div 
+              variants={itemVariants}
+              className="bg-zinc-900/70 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden shadow-2xl"
+            >
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
+              
+              <h3 className="font-bold text-white text-md mb-4 flex items-center gap-2">
+                <Bot className="w-5 h-5 text-emerald-400 animate-pulse" />
+                {lang === 'en' ? 'AI Diagnostic Summary' : 'Muhtasari wa AI'}
+              </h3>
+
+              {summaryLoading ? (
+                <div className="flex items-center gap-3 py-6 text-zinc-500 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Generating point-form overview...</span>
+                </div>
               ) : (
-                <p className="text-zinc-300 leading-relaxed text-sm">
-                  {t.quickSummaryDesc}
-                </p>
+                <div className="text-sm text-zinc-300 space-y-3 leading-relaxed whitespace-pre-line border-b border-zinc-800/80 pb-4 mb-4">
+                  {summary}
+                </div>
               )}
             </motion.div>
-            
-            {/* Explanation */}
-            <motion.div id="overview" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Info className="w-5 h-5 text-emerald-400" />
-                {t.diagnosticOverview}
-              </h2>
-              <p className="text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
-                {data.diagnostic_overview || `This is a dynamically generated report for the ${data.plant_name} crop indicating signs of ${data.disease}. Continuous monitoring and appropriate intervention based on these findings is strongly advised.`}
-              </p>
+
+            {/* 💬 Copilot Chat Widget */}
+            <motion.div 
+              variants={itemVariants}
+              className="bg-zinc-900/70 border border-zinc-800 rounded-3xl p-6 h-[400px] flex flex-col justify-between shadow-2xl relative"
+            >
+              {/* Online Indicator */}
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800/60 mb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                    {lang === 'en' ? 'Agronomist Copilot' : 'Copilot wa Kilimo'}
+                  </span>
+                </div>
+                <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
+              </div>
+
+              {/* Chat Stream */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent text-xs mb-3">
+                {chatMessages.map((m, idx) => (
+                  <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-3 rounded-2xl ${
+                      m.role === 'user'
+                        ? 'bg-emerald-500 text-zinc-950 font-medium rounded-tr-none'
+                        : 'bg-zinc-800 text-zinc-200 rounded-tl-none'
+                    }`}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-zinc-800 p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
+                      <span className="text-[10px] text-zinc-400">Analysing query...</span>
+                    </div>
+                  </div>
+                )}
+                {isListening && (
+                  <div className="flex justify-start">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-2xl rounded-tl-none flex items-center gap-1.5 animate-pulse text-[10px] text-emerald-400 font-bold">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                      {t.voiceStart}
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat input form */}
+              <form onSubmit={handleChatSubmit} className="flex gap-1.5 shrink-0 relative">
+                <div className="relative flex-1">
+                  <input 
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={lang === 'en' ? "Ask about this crop..." : "Uliza kuhusu mmea huu..."}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl py-2.5 pl-3 pr-9 text-xs focus:outline-none focus:border-emerald-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={startSpeechRecognition}
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${
+                      isListening ? 'bg-red-500/10 text-red-400 animate-pulse' : 'text-zinc-600 hover:text-emerald-400'
+                    }`}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <button
+                  type="submit"
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="p-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-zinc-950 disabled:text-zinc-600 rounded-xl font-bold transition-all shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
             </motion.div>
 
-            {/* Treatments */}
-            <motion.div id="treatment" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
-                <ShieldAlert className="w-32 h-32 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2 relative z-10">
-                <Droplet className="w-5 h-5 text-emerald-400" />
-                {t.immediateProtocol}
-              </h2>
-              <div className="space-y-4 relative z-10 text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
-                {data.recommendation}
-              </div>
-            </motion.div>
-
-            {/* Recommendations */}
-            <motion.div id="prevention" variants={itemVariants} className="scroll-mt-28 bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8">
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                <Sprout className="w-5 h-5 text-emerald-400" />
-                {t.longTerm}
-              </h2>
-              <div className="space-y-4 text-zinc-300 leading-relaxed text-sm whitespace-pre-line">
-                {data.long_term_recommendations || "Maintain consistent field monitoring and optimize irrigation schedules to avoid compounding crop stress."}
-              </div>
-            </motion.div>
-
-          </div>
+          </aside>
 
         </motion.div>
 
