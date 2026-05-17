@@ -2,21 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  UploadCloud, 
-  X, 
-  ShieldCheck, 
-  Leaf, 
-  Loader2, 
-  AlertCircle, 
-  CheckCircle2, 
-  History, 
-  ChevronRight, 
-  Trash2, 
-  Camera, 
-  Globe, 
-  Sun, 
-  Moon, 
+import {
+  UploadCloud,
+  X,
+  ShieldCheck,
+  Leaf,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  History,
+  ChevronRight,
+  Trash2,
+  Camera,
+  Globe,
+  Sun,
+  Moon,
   LogOut,
   Calendar,
   Plus,
@@ -61,6 +61,7 @@ export default function Dashboard() {
   // Satellite Map states
   const [mapLoaded, setMapLoaded] = useState(false)
   const mapRef = useRef<any>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
 
   // Adaptive Crop Care Tracker Task lists
   const [trackerTasks, setTrackerTasks] = useState<Record<string, TaskItem[]>>({})
@@ -191,11 +192,13 @@ export default function Dashboard() {
       let lng = 36.8219
 
       const initMap = (centerLat: number, centerLng: number) => {
+        if (!mapContainerRef.current) return
+
         if (mapRef.current) {
           mapRef.current.remove()
         }
 
-        const map = L.map('field-map-container').setView([centerLat, centerLng], 17)
+        const map = L.map(mapContainerRef.current).setView([centerLat, centerLng], 17)
         mapRef.current = map
 
         // High-resolution ESRI World Satellite tile layer
@@ -207,7 +210,7 @@ export default function Dashboard() {
         scans.forEach((scan: any, idx: number) => {
           const isCritical = scan.health_status === 'Critical'
           const isModerate = scan.health_status === 'Moderate'
-          
+
           const color = isCritical ? '#f87171' : isModerate ? '#facc15' : '#34d399'
 
           // Generate realistic row-offsets centered on the farmer's GPS coordinates
@@ -324,16 +327,16 @@ export default function Dashboard() {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     if (!confirm(lang === 'en' ? 'Are you sure you want to delete this scan record?' : 'Je, una uhakika unataka kufuta kumbukumbu hii ya uchunguzi?')) return
-    
+
     try {
       const response = await fetch(`/api/scans/${id}`, {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) throw new Error('Failed to delete')
-      
+
       setScans(scans.filter(s => s.id !== id))
     } catch (err: any) {
       alert(err.message)
@@ -347,9 +350,9 @@ export default function Dashboard() {
       const response = await fetch('/api/scans', {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) throw new Error('Failed to clear history')
-      
+
       setScans([])
     } catch (err: any) {
       alert(err.message)
@@ -386,7 +389,7 @@ export default function Dashboard() {
       setStatus('error')
       return
     }
-    
+
     setFile(selectedFile)
     setPreview(URL.createObjectURL(selectedFile))
     setStatus('idle')
@@ -434,7 +437,7 @@ export default function Dashboard() {
       canvas.height = videoRef.current.videoHeight
       const ctx = canvas.getContext('2d')
       ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
-      
+
       const dataUrl = canvas.toDataURL('image/jpeg')
       setPreview(dataUrl)
 
@@ -453,7 +456,7 @@ export default function Dashboard() {
 
     try {
       setStatus('uploading')
-      
+
       const fileExt = file.name.split('.').pop()
       const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
       const filePath = `uploads/${fileName}`
@@ -471,7 +474,7 @@ export default function Dashboard() {
         .getPublicUrl(filePath)
 
       setStatus('analyzing')
-      
+
       const formData = new FormData()
       formData.append('image', file)
 
@@ -510,22 +513,22 @@ export default function Dashboard() {
 
       const topResult = data.classification[0]
       const aiAnalysis = data.analysis
-      
+
       const plantPart = topResult.label.split('___')[0].replace(/_/g, ' ') || 'Unknown Plant'
       const diseasePart = topResult.label.split('___')[1] ? topResult.label.split('___')[1].replace(/_/g, ' ') : 'healthy'
       const formattedDisease = diseasePart.toLowerCase() === 'healthy' ? 'Healthy (No Disease Detected)' : diseasePart
 
       const insertPayload = {
-         image_url: publicUrlData.publicUrl,
-         plant_name: plantPart,
-         disease: formattedDisease,
-         health_status: topResult.label.toLowerCase().includes('healthy') ? 'Optimal' : 'Critical',
-         confidence: parseFloat((topResult.score * 100).toFixed(1)),
-         recommendation: aiAnalysis.immediateProtocol,
-         diagnostic_overview: aiAnalysis.diagnosticOverview,
-         long_term_recommendations: aiAnalysis.longTermRecommendations,
-         farmer_summary: aiAnalysis.farmerSummary,
-         user_id: userId,
+        image_url: publicUrlData.publicUrl,
+        plant_name: plantPart,
+        disease: formattedDisease,
+        health_status: topResult.label.toLowerCase().includes('healthy') ? 'Optimal' : 'Critical',
+        confidence: parseFloat((topResult.score * 100).toFixed(1)),
+        recommendation: aiAnalysis.immediateProtocol,
+        diagnostic_overview: aiAnalysis.diagnosticOverview,
+        long_term_recommendations: aiAnalysis.longTermRecommendations,
+        farmer_summary: aiAnalysis.farmerSummary,
+        user_id: userId,
       }
 
       let { data: insertData, error: dbError } = await supabase
@@ -551,7 +554,7 @@ export default function Dashboard() {
       setLatestScanId(insertData.id)
       setStatus('success')
       fetchScans() // Refresh history with user-scoped data
-      
+
     } catch (error: any) {
       console.error('Upload error:', error)
       setErrorMessage(error.message || 'Failed to upload and analyze image.')
@@ -573,7 +576,7 @@ export default function Dashboard() {
   // Parse scans to extract unique crops and their latest conditions
   const trackedCrops = useMemo(() => {
     const cropsMap: Record<string, any> = {}
-    
+
     scans.forEach((scan) => {
       if (!cropsMap[scan.plant_name]) {
         cropsMap[scan.plant_name] = {
@@ -593,7 +596,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans transition-colors duration-300 font-sans">
-      
+
       {/* Navigation */}
       <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -603,9 +606,9 @@ export default function Dashboard() {
             </div>
             <span className="font-bold text-white tracking-wide text-lg">{t.brand}</span>
           </Link>
-          
+
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
             >
@@ -613,7 +616,7 @@ export default function Dashboard() {
               {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
             </button>
 
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
             >
@@ -648,7 +651,7 @@ export default function Dashboard() {
               {t.agrovetConsole.split(' ')[0]}
             </Link>
 
-            <button 
+            <button
               onClick={handleSignOut}
               className="p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all flex items-center gap-2"
               title={t.signOut}
@@ -660,7 +663,7 @@ export default function Dashboard() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-10">
-        
+
         {/* Header Block */}
         <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -696,7 +699,7 @@ export default function Dashboard() {
 
         {/* Workspace Layout */}
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(380px,0.65fr)] xl:items-start">
-          
+
           {/* Diagnostic Area */}
           <section id="diagnostic" className="scroll-mt-24 space-y-4">
             <div>
@@ -708,7 +711,7 @@ export default function Dashboard() {
 
             <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 md:p-10 relative overflow-hidden">
               <AnimatePresence mode="wait">
-                
+
                 {/* Camera Modal */}
                 {isCameraActive ? (
                   <motion.div
@@ -718,22 +721,22 @@ export default function Dashboard() {
                     exit={{ opacity: 0 }}
                     className="border border-emerald-500/20 rounded-2xl p-6 bg-zinc-950 flex flex-col items-center justify-center min-h-[400px] relative animate-fade-in"
                   >
-                    <video 
-                      ref={videoRef} 
-                      autoPlay 
-                      playsInline 
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
                       className="w-full max-h-[350px] rounded-xl object-cover bg-black"
                     />
-                    
+
                     <div className="flex gap-4 mt-6">
-                      <button 
+                      <button
                         onClick={capturePhoto}
                         className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2"
                       >
                         <Camera className="w-5 h-5" />
                         {t.capture}
                       </button>
-                      <button 
+                      <button
                         onClick={stopCamera}
                         className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-colors"
                       >
@@ -742,40 +745,39 @@ export default function Dashboard() {
                     </div>
                   </motion.div>
                 ) : !preview ? (
-                  
+
                   /* Normal Upload zone */
                   <motion.div
                     key="upload-zone"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer flex flex-col items-center justify-center min-h-[400px] relative ${
-                      isDragging 
-                        ? 'border-emerald-500 bg-emerald-500/5' 
+                    className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer flex flex-col items-center justify-center min-h-[400px] relative ${isDragging
+                        ? 'border-emerald-500 bg-emerald-500/5'
                         : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
-                    }`}
+                      }`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      ref={fileInputRef} 
+                    <input
+                      type="file"
+                      className="hidden"
+                      ref={fileInputRef}
                       onChange={handleFileChange}
                       accept="image/*"
                     />
-                    
+
                     <div className="w-20 h-20 rounded-full bg-zinc-800/80 flex items-center justify-center mb-6 shadow-inner relative group-hover:scale-105 transition-transform">
                       <UploadCloud className="w-10 h-10 text-emerald-400" />
                     </div>
-                    
+
                     <h3 className="text-xl font-bold text-white mb-2">{t.dragDrop}</h3>
                     <p className="text-zinc-400 mb-6">{t.browse}</p>
-                    
+
                     <div className="flex gap-3 mb-6 relative z-20">
-                      <button 
+                      <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
@@ -794,7 +796,7 @@ export default function Dashboard() {
                     </div>
                   </motion.div>
                 ) : (
-                  
+
                   /* Image preview & analysis actions */
                   <motion.div
                     key="preview-zone"
@@ -804,14 +806,14 @@ export default function Dashboard() {
                   >
                     <div className="w-full md:w-1/2 relative rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 aspect-square flex items-center justify-center group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={preview} 
-                        alt="Leaf Preview" 
+                      <img
+                        src={preview}
+                        alt="Leaf Preview"
                         className={`object-contain w-full h-full transition-opacity duration-300 ${status === 'analyzing' || status === 'uploading' ? 'opacity-50' : 'opacity-100'}`}
                       />
-                      
+
                       {status === 'idle' && (
-                        <button 
+                        <button
                           onClick={clearSelection}
                           className="absolute top-4 right-4 p-2 bg-zinc-900/80 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 rounded-full backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
                         >
@@ -821,7 +823,7 @@ export default function Dashboard() {
 
                       {(status === 'uploading' || status === 'analyzing') && (
                         <div className="absolute inset-0 z-10 pointer-events-none">
-                          <motion.div 
+                          <motion.div
                             initial={{ top: '0%' }}
                             animate={{ top: ['0%', '100%', '0%'] }}
                             transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
@@ -841,7 +843,7 @@ export default function Dashboard() {
 
                       <div className="space-y-4">
                         {status === 'idle' && (
-                          <button 
+                          <button
                             onClick={handleAnalyze}
                             className="group relative w-full flex items-center justify-center gap-3 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl font-bold text-lg transition-all shadow-[0_0_35px_-8px_rgba(16,185,129,0.4)] hover:shadow-[0_0_60px_-4px_rgba(16,185,129,0.55)] hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
                           >
@@ -871,14 +873,14 @@ export default function Dashboard() {
                             <p className="text-emerald-400 text-sm mb-4">{t.successDesc}</p>
                             <div className="flex gap-3 justify-center">
                               {latestScanId && (
-                                <Link 
+                                <Link
                                   href={`/scan/${latestScanId}`}
                                   className="group px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg font-bold transition-all shadow-[0_0_25px_-6px_rgba(16,185,129,0.35)] hover:shadow-[0_0_40px_-4px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 active:translate-y-0 text-sm focus:outline-none"
                                 >
                                   {t.viewReport}
                                 </Link>
                               )}
-                              <button 
+                              <button
                                 onClick={clearSelection}
                                 className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors text-sm"
                               >
@@ -897,7 +899,7 @@ export default function Dashboard() {
                                 <p className="text-red-400/80 text-sm">{errorMessage}</p>
                               </div>
                             </div>
-                            <button 
+                            <button
                               onClick={() => setStatus('idle')}
                               className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors text-sm"
                             >
@@ -931,26 +933,24 @@ export default function Dashboard() {
         {/* ── Multi-Tab Management Hub: Scans vs Care Tracker vs Field Map ── */}
         <div id="management" className="mt-16 scroll-mt-24">
           <div className="border-b border-zinc-800/80 pb-4 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            
+
             {/* Tabs Trigger Headers */}
             <div className="flex flex-wrap gap-4">
-              <button 
+              <button
                 onClick={() => setActiveTab('scans')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
-                  activeTab === 'scans' ? 'text-white border-b-2 border-emerald-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'scans' ? 'text-white border-b-2 border-emerald-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <History className="w-5 h-5 text-emerald-400" />
                   {t.recentScans}
                 </span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveTab('tracker')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
-                  activeTab === 'tracker' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'tracker' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-emerald-400" />
@@ -958,11 +958,10 @@ export default function Dashboard() {
                 </span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab('map')}
-                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${
-                  activeTab === 'map' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={`pb-4 px-2 text-xl font-bold tracking-tight transition-all relative ${activeTab === 'map' ? 'text-white border-b-2 border-emerald-400 font-extrabold shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
@@ -973,7 +972,7 @@ export default function Dashboard() {
 
             {activeTab === 'scans' && (
               <div className="flex items-center gap-4">
-                <button 
+                <button
                   onClick={handleClearHistory}
                   className="text-zinc-500 hover:text-red-400 text-sm font-medium transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-red-400/20"
                 >
@@ -984,10 +983,10 @@ export default function Dashboard() {
           </div>
 
           <AnimatePresence mode="wait">
-            
+
             {/* ── TAB 1: RECENT SCANS LIST ── */}
             {activeTab === 'scans' && (
-              <motion.div 
+              <motion.div
                 key="tab-scans"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1000,10 +999,10 @@ export default function Dashboard() {
                   </div>
                 ) : scans.map((scan, i) => {
                   const styles = getStyleForHealth(scan.health_status || 'Moderate')
-                  
+
                   return (
                     <Link href={`/scan/${scan.id}`} key={scan.id}>
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
@@ -1037,7 +1036,7 @@ export default function Dashboard() {
                                 <span className="text-xs font-bold text-zinc-300">{scan.confidence}%</span>
                               </div>
                               <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                                <motion.div 
+                                <motion.div
                                   initial={{ width: 0 }}
                                   animate={{ width: `${scan.confidence}%` }}
                                   transition={{ duration: 1, delay: 0.2 + (i * 0.05) }}
@@ -1046,8 +1045,8 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          
-                          <button 
+
+                          <button
                             onClick={(e) => handleDelete(e, scan.id)}
                             className="p-2 hover:bg-red-500/10 text-zinc-600 hover:text-red-400 rounded-lg transition-colors group-hover:opacity-100 md:opacity-0"
                             title="Delete scan"
@@ -1061,10 +1060,10 @@ export default function Dashboard() {
                 })}
               </motion.div>
             )}
-            
+
             {/* ── TAB 2: ADAPTIVE CROP CARE TRACKER HUB ── */}
             {activeTab === 'tracker' && (
-              <motion.div 
+              <motion.div
                 key="tab-tracker"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1077,7 +1076,7 @@ export default function Dashboard() {
                   </div>
                 ) : trackedCrops.map((crop) => {
                   const styles = getStyleForHealth(crop.healthStatus)
-                  
+
                   const isCritical = crop.healthStatus === 'Critical'
                   const isModerate = crop.healthStatus === 'Moderate'
                   const scheduleLabel = isCritical
@@ -1095,7 +1094,7 @@ export default function Dashboard() {
                   const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
                   return (
-                    <motion.div 
+                    <motion.div
                       key={crop.plantName}
                       className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 flex flex-col justify-between hover:border-emerald-500/20 transition-all shadow-xl"
                     >
@@ -1137,7 +1136,7 @@ export default function Dashboard() {
                             <span className="text-emerald-400 font-bold">{percentage}% Completed</span>
                           </div>
                           <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden shadow-inner">
-                            <motion.div 
+                            <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${percentage}%` }}
                               className="h-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] rounded-full transition-all duration-300"
@@ -1147,23 +1146,23 @@ export default function Dashboard() {
 
                         <div className="space-y-2 mb-6">
                           {tasks.map((task) => (
-                            <div 
+                            <div
                               key={task.id}
                               onClick={() => toggleTask(crop.plantName, task.id)}
                               className="flex items-start justify-between gap-3 p-3 bg-zinc-950/40 hover:bg-zinc-950/80 border border-zinc-800/40 rounded-xl cursor-pointer select-none transition-colors group"
                             >
                               <div className="flex items-start gap-3">
-                                <input 
+                                <input
                                   type="checkbox"
                                   checked={task.completed}
-                                  onChange={() => {}}
+                                  onChange={() => { }}
                                   className="mt-0.5 accent-emerald-400"
                                 />
                                 <span className={`text-xs ${task.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>
                                   {task.text}
                                 </span>
                               </div>
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   deleteTask(crop.plantName, task.id)
@@ -1178,7 +1177,7 @@ export default function Dashboard() {
                       </div>
 
                       <div className="flex gap-2 border-t border-zinc-800/60 pt-4 mt-auto">
-                        <input 
+                        <input
                           type="text"
                           value={customTaskInput[crop.plantName] || ''}
                           onChange={(e) => setCustomTaskInput({ ...customTaskInput, [crop.plantName]: e.target.value })}
@@ -1221,8 +1220,8 @@ export default function Dashboard() {
                       {lang === 'en' ? 'Field Health Satellite Map' : 'Ramani ya Satilaiti ya Afya'}
                     </h3>
                     <p className="text-xs text-zinc-500">
-                      {lang === 'en' 
-                        ? 'Real-time diagnostic hot-spots mapped to your field plot. Colored pins show crop pathology (Red = Critical, Yellow = Moderate, Green = Healthy).' 
+                      {lang === 'en'
+                        ? 'Real-time diagnostic hot-spots mapped to your field plot. Colored pins show crop pathology (Red = Critical, Yellow = Moderate, Green = Healthy).'
                         : 'Maeneo yenye maambukizi ya ugonjwa yaliyopangwa kwenye ramani ya shamba lako (Nyekundu = Hatari, Njano = Kiasi, Kijani = Afya).'}
                     </p>
                   </div>
@@ -1234,9 +1233,10 @@ export default function Dashboard() {
                         <span className="text-zinc-400 text-sm">Loading field satellite imaging...</span>
                       </div>
                     )}
-                    <div 
-                      id="field-map-container" 
-                      className="h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10" 
+                    <div
+                      ref={mapContainerRef}
+                      id="field-map-container"
+                      className="h-[480px] w-full rounded-2xl overflow-hidden border border-zinc-800/80 shadow-2xl relative z-10"
                     />
                   </div>
                 </div>

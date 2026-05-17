@@ -3,31 +3,31 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ArrowLeft, 
-  Globe, 
-  Sun, 
-  Moon, 
-  LogOut, 
-  BookOpen, 
-  GraduationCap, 
-  Award, 
-  HelpCircle, 
-  Trophy, 
-  ChevronRight, 
-  Bot, 
-  Send, 
-  Mic, 
-  Volume2, 
-  VolumeX, 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  Lightbulb, 
-  Sprout, 
-  Droplets, 
-  Bug, 
-  Activity, 
+import {
+  ArrowLeft,
+  Globe,
+  Sun,
+  Moon,
+  LogOut,
+  BookOpen,
+  GraduationCap,
+  Award,
+  HelpCircle,
+  Trophy,
+  ChevronRight,
+  Bot,
+  Send,
+  Mic,
+  Volume2,
+  VolumeX,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Lightbulb,
+  Sprout,
+  Droplets,
+  Bug,
+  Activity,
   Sparkles,
   RefreshCw
 } from 'lucide-react'
@@ -254,7 +254,7 @@ export default function TeachingsPage() {
   const [lang, setLang] = useState<'en' | 'sw'>('en')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  
+
   // Quiz states
   const [quizActive, setQuizActive] = useState(false)
   const [currentQ, setCurrentQ] = useState(0)
@@ -283,23 +283,38 @@ export default function TeachingsPage() {
     document.documentElement.classList.toggle('light', finalTheme === 'light')
 
     // Initial greeting in teaching bot
-    const welcome = savedLang === 'sw' 
-      ? "Habari! Mimi ni Mwalimu wako wa AI wa Masomo ya Kilimo. Uliza maswali yoyote kuhusu mimea, kemia ya udongo, kufuga, au umwagiliaji. Nitakujibu kwa kilimo TU! 🌱" 
+    const welcome = savedLang === 'sw'
+      ? "Habari! Mimi ni Mwalimu wako wa AI wa Masomo ya Kilimo. Uliza maswali yoyote kuhusu mimea, kemia ya udongo, kufuga, au umwagiliaji. Nitakujibu kwa kilimo TU! 🌱"
       : "Hello! I am your AI Agronomy Teacher. Ask me any questions about soil chemistry, composting, precision irrigation, crop spacing, or livestock rearing. I am trained to discuss farming ONLY! 🌱"
     setChatMessages([{ role: 'bot', content: welcome }])
+  }, [])
+
+  // Cleanup speech resources on unmount to prevent mobile browser memory leaks or "already started" errors
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+          recognitionRef.current = null;
+        } catch (e) { }
+      }
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    }
   }, [])
 
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'sw' : 'en'
     setLang(nextLang)
     localStorage.setItem('lang', nextLang)
-    
+
     // Reset greetings and questions language
     const welcome = nextLang === 'sw'
       ? "Habari! Mimi ni Mwalimu wako wa AI wa Masomo ya Kilimo. Uliza maswali yoyote kuhusu mimea, kemia ya udongo, kufuga, au umwagiliaji. Nitakujibu kwa kilimo TU! 🌱"
       : "Hello! I am your AI Agronomy Teacher. Ask me any questions about soil chemistry, composting, precision irrigation, crop spacing, or livestock rearing. I am trained to discuss farming ONLY! 🌱"
     setChatMessages([{ role: 'bot', content: welcome }])
-    
+
     // If quiz is active, reset it to match language
     setQuizActive(false)
     setCurrentQ(0)
@@ -339,10 +354,16 @@ export default function TeachingsPage() {
           }))
         })
       })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'API Error');
+      }
+
       const payload = await res.json()
       setChatMessages(prev => [...prev, { role: 'bot', content: payload.content }])
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? 'Connection dropped. Please try again.' : 'Hitilafu ya mtandao. Tafadhali jaribu tena.' }])
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: 'bot', content: lang === 'en' ? `Error: ${err.message}. Please try again.` : `Hitilafu: ${err.message}. Tafadhali jaribu tena.` }])
     } finally {
       setChatLoading(false)
     }
@@ -350,15 +371,10 @@ export default function TeachingsPage() {
 
   // Voice speech dictation inside teachings
   const startSpeechRecognition = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
       alert(lang === 'en' ? 'Speech recognition not supported in this browser.' : 'Utambuzi wa sauti hauhimiliwi kwenye kivinjari hiki.')
-      return
-    }
-
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
       return
     }
 
@@ -372,12 +388,28 @@ export default function TeachingsPage() {
     rec.onend = () => setIsListening(false)
 
     rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript
-      setChatInput(transcript)
+      if (e.results && e.results.length > 0) {
+        const transcript = e.results[0][0].transcript
+        setChatInput(transcript)
+      }
+    }
+
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop()
+      } catch (err) {
+        console.error("Mic stop error:", err)
+      }
+      setIsListening(false)
+      return
     }
 
     recognitionRef.current = rec
-    rec.start()
+    try {
+      rec.start()
+    } catch (err) {
+      setIsListening(false)
+    }
   }
 
   // Speak bot narration out loud
@@ -391,27 +423,37 @@ export default function TeachingsPage() {
     }
 
     const lastMsg = chatMessages[chatMessages.length - 1]?.content || ''
-    if (!lastMsg) return
+    if (!lastMsg || !window.speechSynthesis) return
 
     const utterance = new SpeechSynthesisUtterance(lastMsg)
-    const voices = window.speechSynthesis.getVoices()
-    if (lang === 'sw') {
-      const swVoice = voices.find(v => v.lang.startsWith('sw') || v.name.toLowerCase().includes('swahili'))
-      if (swVoice) utterance.voice = swVoice
-    } else {
-      const enVoice = voices.find(v => v.lang.startsWith('en') || v.name.toLowerCase().includes('english'))
-      if (enVoice) utterance.voice = enVoice
+
+    const setVoice = () => {
+      const voices = window.speechSynthesis.getVoices()
+      if (lang === 'sw') {
+        const swVoice = voices.find(v => v.lang.startsWith('sw') || v.name.toLowerCase().includes('swahili'))
+        if (swVoice) utterance.voice = swVoice
+      } else {
+        const enVoice = voices.find(v => v.lang.startsWith('en') || v.name.toLowerCase().includes('english'))
+        if (enVoice) utterance.voice = enVoice
+      }
+      utterance.onend = () => setIsSpeaking(false)
+      utterance.onerror = () => setIsSpeaking(false)
+      setIsSpeaking(true)
+      window.speechSynthesis.speak(utterance)
     }
 
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => setIsSpeaking(false)
-
-    setIsSpeaking(true)
-    window.speechSynthesis.speak(utterance)
+    // On mobile, voices are often loaded asynchronously
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = setVoice
+    } else {
+      setVoice()
+    }
   }
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
   }, [chatMessages])
 
   // Quiz progression
@@ -452,13 +494,13 @@ export default function TeachingsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-24 transition-colors duration-300">
-      
+
       {/* Navigation */}
       <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> {t.backToDashboard}
+              <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">{t.backToDashboard}</span>
             </Link>
             <div className="w-px h-6 bg-zinc-800" />
             <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
@@ -470,23 +512,23 @@ export default function TeachingsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
               {lang === 'en' ? 'Community' : 'Jamii'}
             </Link>
 
-            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
               {lang === 'en' ? 'Calendar' : 'Ratiba'}
             </Link>
 
-            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
               {lang === 'en' ? 'Diary' : 'Shajara'}
             </Link>
 
-            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
+            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
               {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
             </Link>
 
-            <button 
+            <button
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
             >
@@ -494,7 +536,7 @@ export default function TeachingsPage() {
               {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
             </button>
 
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
             >
@@ -505,22 +547,22 @@ export default function TeachingsPage() {
       </nav>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
-        
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-10">
+
         {/* Header Block */}
         <div className="mb-12 text-center max-w-3xl mx-auto relative">
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none" />
-          
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 md:w-48 h-32 md:h-48 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none" />
+
           <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 text-emerald-300 text-xs font-semibold mb-4">
             <GraduationCap className="w-3.5 h-3.5" />
             {lang === 'en' ? 'FarmGuard Academy' : 'Chuo cha FarmGuard'}
           </span>
-          
+
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight leading-tight">
             {lang === 'en' ? 'Smart Agronomy Teachings' : 'Masomo ya Kilimo cha Kisasa'}
           </h1>
           <p className="text-zinc-400 text-md leading-relaxed">
-            {lang === 'en' 
+            {lang === 'en'
               ? 'Become a master of crop science. Explore deep botanical curriculum modules, interact with our strict AI Agronomy Copilot, and test your knowledge in the dynamic Academy Quiz!'
               : 'Kuwa mtaalamu wa sayansi ya mazao. Chunguza masomo ya kina, wasiliana na Mwalimu wetu wa Kilimo wa AI, na pima ufahamu wako kupitia chemsha bongo ya kilimo!'}
           </p>
@@ -528,14 +570,14 @@ export default function TeachingsPage() {
 
         {/* Dynamic Two-Column Layout */}
         <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
-          
+
           {/* Left Column: Curriculums & Quiz */}
           <div className="space-y-12">
-            
+
             {/* 📖 Curriculum Modules Grid */}
             <section className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
                   <BookOpen className="w-6 h-6 text-emerald-400" />
                   {lang === 'en' ? 'Botanical Masterclasses' : 'Mitaala Kamili ya Kilimo'}
                 </h2>
@@ -550,12 +592,12 @@ export default function TeachingsPage() {
                   const isOpen = activeCategory === item.id
 
                   return (
-                    <div 
+                    <div
                       key={item.id}
-                      className={`col-span-1 sm:col-span-${isOpen ? '2' : '1'} bg-zinc-900/40 border ${item.borderColor} rounded-3xl p-6 transition-all hover:bg-zinc-900/60 flex flex-col justify-between`}
+                      className={`w-full col-span-1 sm:col-span-${isOpen ? '2' : '1'} bg-zinc-900/40 border ${item.borderColor} rounded-3xl p-5 md:p-6 transition-all hover:bg-zinc-900/60 flex flex-col justify-between`}
                     >
                       <div>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-4 gap-2">
                           <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center border border-zinc-800`}>
                             <Icon className="w-6 h-6 text-emerald-400" />
                           </div>
@@ -570,7 +612,7 @@ export default function TeachingsPage() {
                         {/* Expanded Lessons */}
                         <AnimatePresence>
                           {isOpen && (
-                            <motion.div 
+                            <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
@@ -590,9 +632,9 @@ export default function TeachingsPage() {
                         </AnimatePresence>
                       </div>
 
-                      <button 
+                      <button
                         onClick={() => setActiveCategory(isOpen ? null : item.id)}
-                        className={`w-full py-2.5 mt-4 border border-zinc-800 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${isOpen ? 'text-emerald-400' : 'text-zinc-400'}`}
+                        className={`w-full py-3 mt-4 border border-zinc-800 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${isOpen ? 'text-emerald-400' : 'text-zinc-400'}`}
                       >
                         <span>{isOpen ? (lang === 'en' ? 'Close Curriculum' : 'Funga Somo') : (lang === 'en' ? 'Expand Curriculum' : 'Fungua Somo')}</span>
                         <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-90 text-emerald-400' : ''}`} />
@@ -604,16 +646,16 @@ export default function TeachingsPage() {
             </section>
 
             {/* 🏆 Academy Interactive Quiz */}
-            <section className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
+            <section className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-5 md:p-8 relative overflow-hidden shadow-2xl">
               <div className="absolute -right-20 -bottom-20 w-60 h-60 bg-emerald-500/5 blur-[90px] rounded-full pointer-events-none" />
-              
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-zinc-800/60 pb-6 mb-6">
                 <div className="flex items-start gap-4">
                   <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
                     <Award className="w-6 h-6 text-emerald-400 animate-bounce" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white tracking-tight">
+                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                       {lang === 'en' ? 'Academy Agronomy Quiz' : 'Chemsha Bongo ya Chuo'}
                     </h2>
                     <p className="text-zinc-500 text-xs mt-1">
@@ -623,9 +665,9 @@ export default function TeachingsPage() {
                 </div>
 
                 {!quizActive && (
-                  <button 
+                  <button
                     onClick={restartQuiz}
-                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)]"
                   >
                     {lang === 'en' ? 'Start Academy Quiz' : 'Anza Chemsha Bongo'}
                   </button>
@@ -634,7 +676,7 @@ export default function TeachingsPage() {
 
               <AnimatePresence mode="wait">
                 {quizActive ? (
-                  <motion.div 
+                  <motion.div
                     key={currentQ}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -652,7 +694,7 @@ export default function TeachingsPage() {
                     </div>
 
                     <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-emerald-500 transition-all duration-300"
                         style={{ width: `${((currentQ + 1) / currentQuizList.length) * 100}%` }}
                       />
@@ -668,7 +710,7 @@ export default function TeachingsPage() {
                       {currentQuizList[currentQ].options.map((opt, oIdx) => {
                         const isSelected = selectedOpt === oIdx
                         const isCorrect = currentQuizList[currentQ].answer === oIdx
-                        
+
                         let optStyle = 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700 hover:bg-zinc-900/30'
                         if (answered) {
                           if (isCorrect) {
@@ -681,7 +723,7 @@ export default function TeachingsPage() {
                         }
 
                         return (
-                          <button 
+                          <button
                             key={oIdx}
                             onClick={() => handleOptionSelect(oIdx)}
                             disabled={answered}
@@ -697,7 +739,7 @@ export default function TeachingsPage() {
 
                     {/* Explanation */}
                     {showExplanation && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="bg-emerald-500/5 border border-emerald-500/10 p-5 rounded-2xl"
@@ -715,7 +757,7 @@ export default function TeachingsPage() {
                     {/* Next Button */}
                     {answered && (
                       <div className="flex justify-end pt-2">
-                        <button 
+                        <button
                           onClick={handleNextQuestion}
                           className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2"
                         >
@@ -728,7 +770,7 @@ export default function TeachingsPage() {
                 ) : (
                   /* Completion / Closed state */
                   currentQ === currentQuizList.length - 1 && answered ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       className="text-center py-6"
@@ -738,26 +780,26 @@ export default function TeachingsPage() {
                         {lang === 'en' ? 'Quiz Completed!' : 'Chemsha Bongo Imekamilika!'}
                       </h3>
                       <p className="text-zinc-400 text-sm mb-6">
-                        {lang === 'en' 
+                        {lang === 'en'
                           ? `You scored ${score} out of ${currentQuizList.length} biochemistry points.`
                           : `Umepata alama ${score} kati ya ${currentQuizList.length} za kemia ya kilimo.`}
                       </p>
 
                       <div className="flex gap-3 justify-center">
-                        <button 
+                        <button
                           onClick={restartQuiz}
-                          className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                          className="w-full sm:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                           <span>{lang === 'en' ? 'Retake Quiz' : 'Rudia Tena'}</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             setQuizActive(false)
                             setAnswered(false)
                             setCurrentQ(0)
                           }}
-                          className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs transition-colors"
+                          className="w-full sm:w-auto px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs transition-colors"
                         >
                           {lang === 'en' ? 'Close Panel' : 'Funga Panel'}
                         </button>
@@ -776,14 +818,36 @@ export default function TeachingsPage() {
 
           {/* Right Column: AI Academy Copilot */}
           <aside className="space-y-6">
-            
+
+            {/* Recent Scans / History Section */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-5 shadow-xl relative overflow-hidden group">
+              <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
+
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <h3 className="font-bold text-white text-sm">{t.recentScans}</h3>
+                </div>
+                <Link href="/dashboard" className="text-[10px] text-emerald-400/80 hover:text-emerald-400 font-bold transition-colors">
+                  {t.viewAll}
+                </Link>
+              </div>
+
+              {/* Optimized scroll area for mobile to prevent layout bloat */}
+              <div className="space-y-2.5 max-h-[160px] md:max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent relative z-10">
+                <div className="text-center py-6 bg-zinc-950/40 border border-dashed border-zinc-800 rounded-2xl">
+                  <p className="text-zinc-500 text-[10px] italic">{t.noScans}</p>
+                </div>
+              </div>
+            </div>
+
             {/* AI Classroom Copilot Card */}
-            <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-6 h-[550px] flex flex-col justify-between shadow-2xl relative overflow-hidden">
+            <div className="bg-zinc-900/50 border border-emerald-500/20 rounded-3xl p-4 md:p-6 h-[500px] max-h-[75dvh] lg:h-[600px] lg:max-h-none flex flex-col justify-between shadow-2xl relative overflow-hidden">
               <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
-              
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800/60 mb-3 shrink-0">
+
+              <div className="flex items-center justify-between pb-2 md:pb-3 border-b border-zinc-800/60 mb-2 md:mb-3 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <span className="relative flex h-2.5 w-2.5">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
@@ -796,7 +860,7 @@ export default function TeachingsPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={speakLastMessage}
                     className={`p-1.5 rounded-lg border text-zinc-400 hover:text-white transition-all ${isSpeaking ? 'bg-red-500/20 border-red-500/30 text-red-400 animate-pulse' : 'border-zinc-800 bg-zinc-950/40'}`}
                     title={lang === 'en' ? 'Read Aloud' : 'Sikiliza Somo'}
@@ -811,25 +875,24 @@ export default function TeachingsPage() {
               <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent text-xs mb-3">
                 {chatMessages.map((m, idx) => (
                   <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-3.5 rounded-2xl leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-emerald-500 text-zinc-950 font-bold rounded-tr-none shadow-md shadow-emerald-950/15'
-                        : 'bg-zinc-800/80 text-zinc-200 rounded-tl-none border border-zinc-700/20 whitespace-pre-line'
-                    }`}>
+                    <div className={`max-w-[90%] md:max-w-[85%] p-3 md:p-3.5 rounded-2xl leading-relaxed break-words ${m.role === 'user'
+                      ? 'bg-emerald-500 text-zinc-950 font-bold rounded-tr-none shadow-md shadow-emerald-950/15'
+                      : 'bg-zinc-800/80 text-zinc-200 rounded-tl-none border border-zinc-700/20 whitespace-pre-line'
+                      }`}>
                       {m.content}
                     </div>
                   </div>
                 ))}
                 {chatLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-zinc-800/80 p-3.5 rounded-2xl rounded-tl-none flex items-center gap-2 border border-zinc-700/20">
+                    <div className="bg-zinc-800/80 p-3 rounded-2xl rounded-tl-none flex items-center gap-2 border border-zinc-700/20 max-w-[85%]">
                       <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-                      <span className="text-[10px] text-zinc-400 font-medium">Formulating lesson plans...</span>
+                      <span className="text-[10px] text-zinc-400 font-medium leading-tight">Formulating lesson plans...</span>
                     </div>
                   </div>
                 )}
                 {isListening && (
-                  <div className="flex justify-start animate-fade-in">
+                  <div className="flex justify-start animate-fade-in mt-1 shrink-0">
                     <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-2xl rounded-tl-none flex items-center gap-1.5 animate-pulse text-[10px] text-emerald-400 font-bold">
                       <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                       {lang === 'en' ? 'Classroom listening...' : 'Mwalimu anasikiliza...'}
@@ -842,19 +905,19 @@ export default function TeachingsPage() {
               {/* Chat Input form */}
               <form onSubmit={handleChatSubmit} className="flex gap-1.5 shrink-0 relative">
                 <div className="relative flex-1">
-                  <input 
+                  <input
                     type="text"
                     value={chatInput}
+                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth' }), 300)}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder={lang === 'en' ? "Ask about soils, irrigation, crops..." : "Uliza kuhusu udongo, kilimo, mifugo..."}
-                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl py-3 pl-3.5 pr-10 text-xs focus:outline-none focus:border-emerald-500/40"
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl py-3.5 md:py-3 pl-3.5 pr-10 text-xs focus:outline-none focus:border-emerald-500/40 appearance-none"
                   />
                   <button
                     type="button"
                     onClick={startSpeechRecognition}
-                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${
-                      isListening ? 'bg-red-500/15 text-red-400 animate-pulse' : 'text-zinc-500 hover:text-emerald-400'
-                    }`}
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${isListening ? 'bg-red-500/15 text-red-400 animate-pulse' : 'text-zinc-500 hover:text-emerald-400'
+                      }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
                   </button>
@@ -877,7 +940,7 @@ export default function TeachingsPage() {
                   {lang === 'en' ? 'Strict Agri-Prompt Notice' : 'Ilani ya Kilimo Tu'}
                 </h4>
                 <p className="text-zinc-400 text-[10px] leading-relaxed mt-1">
-                  {lang === 'en' 
+                  {lang === 'en'
                     ? 'Our Classroom Copilot is strictly programmed to discuss agriculture. Topics outside plants, livestock, and agronomy will be politely declined to save processing power.'
                     : 'Mwalimu wetu wa AI ameratibiwa kujadili kilimo TU. Mada zisizohusu mazao, udongo, au mifugo zitakataliwa kwa adabu ili kuokoa nguvu za mfumo.'}
                 </p>
