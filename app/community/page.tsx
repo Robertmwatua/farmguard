@@ -19,7 +19,11 @@ import {
   Wifi, 
   AlertCircle,
   Hash,
-  Trash2
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  MoreVertical
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
@@ -32,6 +36,8 @@ interface Message {
   role: string
   content: string
   created_at: string
+  updated_at?: string
+  is_deleted?: boolean
 }
 
 interface ActiveUser {
@@ -57,12 +63,24 @@ export default function CommunityPage() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  
+  // Edit states
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
+  
+  // Menu states
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
   // Presence states
   const [onlineUsers, setOnlineUsers] = useState<ActiveUser[]>([])
   const [realtimeConnected, setRealtimeConnected] = useState(false)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  
+  // Refs to store channel instances for cleanup
+  const chatChannelRef = useRef<any>(null)
+  const presenceChannelRef = useRef<any>(null)
 
   // Initialize theme, lang, auth, messages, and realtime
   useEffect(() => {
@@ -85,10 +103,11 @@ export default function CommunityPage() {
           const rolePart = currentUser.user_metadata?.role || 'farmer'
           setUserRole(rolePart)
 
-          // Load historical community messages (latest 50)
+          // Load historical community messages (latest 50) - only non-deleted
           const { data: initialMsgs, error: fetchErr } = await supabase
             .from('community_messages')
             .select('*')
+            .eq('is_deleted', false)
             .order('created_at', { ascending: true })
             .limit(50)
 
@@ -97,7 +116,7 @@ export default function CommunityPage() {
           }
 
           // Initialize Realtime subscriptions
-          initRealtime(currentUser, namePart, rolePart)
+          await initRealtime(currentUser, namePart, rolePart)
         }
       } catch (err) {
         console.error('Error checking auth:', err)
@@ -108,9 +127,30 @@ export default function CommunityPage() {
 
     checkUserAndInit()
 
+    // Click outside handler for menus
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    
+    // CLEANUP FUNCTION
     return () => {
-      supabase.channel('community_chat_room').unsubscribe()
-      supabase.channel('presence_room').unsubscribe()
+      document.removeEventListener('mousedown', handleClickOutside)
+      
+      // Clean up chat channel if it exists
+      if (chatChannelRef.current) {
+        supabase.removeChannel(chatChannelRef.current)
+        chatChannelRef.current = null
+      }
+      
+      // Clean up presence channel if it exists
+      if (presenceChannelRef.current) {
+        supabase.removeChannel(presenceChannelRef.current)
+        presenceChannelRef.current = null
+      }
     }
   }, [])
 
@@ -134,8 +174,8 @@ export default function CommunityPage() {
   }, [filteredMessages])
 
   // Initialize Realtime channels for chat messages and Presence tracking
-  const initRealtime = (usr: any, name: string, role: string) => {
-    // 1. Message Sync
+  const initRealtime = async (usr: any, name: string, role: string) => {
+    // 1. Message Sync Channel - Listen for INSERT, UPDATE, DELETE
     const chatChannel = supabase
       .channel('community_chat_room')
       .on(
@@ -143,25 +183,50 @@ export default function CommunityPage() {
         { event: 'INSERT', schema: 'public', table: 'community_messages' },
         (payload) => {
           const newMsg = payload.new as Message
-          setMessages((prev) => {
-            // Prevent duplicates from local inserts
-            if (prev.some(m => m.id === newMsg.id)) return prev
-            return [...prev, newMsg]
-          })
+          // Only add if not deleted
+          if (!newMsg.is_deleted) {
+            setMessages((prev) => {
+              if (prev.some(m => m.id === newMsg.id)) return prev
+              return [...prev, newMsg]
+            })
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'community_messages' },
+        (payload) => {
+          const updatedMsg = payload.new as Message
+          setMessages((prev) => 
+            prev.map(msg => 
+              msg.id === updatedMsg.id ? updatedMsg : msg
+            )
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'community_messages' },
+        (payload) => {
+          const deletedMsg = payload.old as Message
+          setMessages((prev) => prev.filter(msg => msg.id !== deletedMsg.id))
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setRealtimeConnected(true)
+          console.log('Successfully connected to community chat channel')
         }
       })
 
-    // 2. Presence Tracking
-    const presenceChannel = supabase.channel('presence_room', {
-      config: { presence: { key: usr.id } }
-    })
+    // Store channel reference for cleanup
+    chatChannelRef.current = chatChannel
 
-    presenceChannel
+    // 2. Presence Tracking Channel
+    const presenceChannel = supabase
+      .channel('presence_room', {
+        config: { presence: { key: usr.id } }
+      })
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState()
         const usersList: ActiveUser[] = []
@@ -181,65 +246,194 @@ export default function CommunityPage() {
         if (status === 'SUBSCRIBED') {
           await presenceChannel.track({
             username: name,
-            role,
+            role: role,
             online_at: new Date().toISOString()
           })
+          console.log('Successfully connected to presence channel')
         }
       })
+
+    // Store presence channel reference for cleanup
+    presenceChannelRef.current = presenceChannel
   }
 
   // Handle message posting
-   const handleSendMessage = async (e: React.FormEvent) => {
-     e.preventDefault()
-     if (!chatInput.trim() || !user || chatLoading) return
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!chatInput.trim() || !user || chatLoading) return
 
-     const tempText = chatInput.trim()
-     setChatInput('')
-     setChatLoading(true)
+    const tempText = chatInput.trim()
+    setChatInput('')
+    setChatLoading(true)
 
-     try {
-       const { data: newRow, error: insertError } = await supabase
-         .from('community_messages')
-         .insert([
-           {
-             user_id: user.id,
-             username: username,
-             role: userRole,
-             content: tempText
-           }
-         ])
-         .select()
-         .single()
+    try {
+      const { data: newRow, error: insertError } = await supabase
+        .from('community_messages')
+        .insert([
+          {
+            user_id: user.id,
+            username: username,
+            role: userRole,
+            content: tempText,
+            is_deleted: false
+          }
+        ])
+        .select()
+        .single()
 
-       if (insertError) {
-         throw insertError
-       }
+      if (insertError) {
+        throw insertError
+      }
 
-       if (newRow) {
-         setMessages(prev => {
-           if (prev.some(m => m.id === newRow.id)) return prev
-           return [...prev, newRow]
-         })
-       }
-     } catch (err: any) {
-       console.error('Failed to post message:', err)
-       alert(lang === 'en' ? 'Classroom database sync delayed. Ensure migrations are fully applied.' : 'Hitilafu ya kuhifadhi mazungumzo. Hakikisha jedwali la community_messages limewekwa Supabase.')
-     } finally {
-       setChatLoading(false)
-     }
-   }
+      if (newRow) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === newRow.id)) return prev
+          return [...prev, newRow]
+        })
+      }
+    } catch (err: any) {
+      console.error('Failed to post message:', err)
+      alert(lang === 'en' ? 'Failed to send message. Please try again.' : 'Hitilafu ya kutuma ujumbe. Tafadhali jaribu tena.')
+    } finally {
+      setChatLoading(false)
+    }
+  }
 
-  const handleClearChat = async () => {
-    if (!window.confirm(lang === 'en' ? 'Are you sure you want to clear all chat messages? This action cannot be undone.' : 'Unakuhisi kwamba unataka kufuta mazungumzo yote? Huduma hii huwa hawezi kurudishwa.')) {
+  // Handle message edit
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    if (!newContent.trim() || !user) return
+
+    try {
+      const { error: updateError } = await supabase
+        .from('community_messages')
+        .update({ 
+          content: newContent.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('user_id', user.id) // Ensure user can only edit their own messages
+
+      if (updateError) {
+        throw updateError
+      }
+
+      // Update local state
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, content: newContent.trim(), updated_at: new Date().toISOString() }
+            : msg
+        )
+      )
+      
+      // Clear edit mode
+      setEditingMessageId(null)
+      setEditingContent('')
+      
+      // Show success feedback
+      if (lang === 'en') {
+        // Optional: show toast notification
+        console.log('Message edited successfully')
+      }
+    } catch (err: any) {
+      console.error('Failed to edit message:', err)
+      alert(lang === 'en' ? 'Failed to edit message. Please try again.' : 'Hitilafu ya kuhariri ujumbe. Tafadhali jaribu tena.')
+    }
+  }
+
+  // Handle message delete (soft delete)
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return
+
+    const confirmMessage = lang === 'en' 
+      ? 'Are you sure you want to delete this message? This action cannot be undone.'
+      : 'Una uhakika unataka kufuta ujumbe huu? Hatua hii haiwezi kubatilishwa.'
+
+    if (!window.confirm(confirmMessage)) {
       return
     }
 
     try {
-      // Delete all messages from the community_messages table
+      // Soft delete - mark as deleted
+      const { error: deleteError } = await supabase
+        .from('community_messages')
+        .update({ 
+          is_deleted: true,
+          content: lang === 'en' ? '[Message deleted]' : '[Ujumbe umefutwa]'
+        })
+        .eq('id', messageId)
+        .eq('user_id', user.id) // Ensure user can only delete their own messages
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      // Remove from local state immediately for better UX
+      setMessages(prev => prev.filter(msg => msg.id !== messageId))
+      
+      // Close menu if open
+      setActiveMenuId(null)
+      
+      // Show success feedback
+      if (lang === 'en') {
+        console.log('Message deleted successfully')
+      }
+    } catch (err: any) {
+      console.error('Failed to delete message:', err)
+      alert(lang === 'en' ? 'Failed to delete message. Please try again.' : 'Hitilafu ya kufuta ujumbe. Tafadhali jaribu tena.')
+    }
+  }
+
+  // Handle hard delete (permanent deletion - admin only)
+  const handleHardDeleteMessage = async (messageId: string) => {
+    if (!user || userRole !== 'admin') return
+
+    const confirmMessage = lang === 'en' 
+      ? '⚠️ ADMIN: Permanently delete this message? This action cannot be undone.'
+      : '⚠️ ADMIN: Futa ujumbe huu kabisa? Hatua hii haiwezi kubatilishwa.'
+
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    try {
       const { error: deleteError } = await supabase
         .from('community_messages')
         .delete()
-        .neq('id', 0) // Delete all rows
+        .eq('id', messageId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      // Remove from local state
+      setMessages(prev => prev.filter(msg => msg.id !== messageId))
+      setActiveMenuId(null)
+      
+      alert(lang === 'en' ? 'Message permanently deleted!' : 'Ujumbe umefutwa kabisa!')
+    } catch (err: any) {
+      console.error('Failed to hard delete message:', err)
+      alert(lang === 'en' ? 'Failed to delete message. Please try again.' : 'Hitilafu ya kufuta ujumbe. Tafadhali jaribu tena.')
+    }
+  }
+
+  // Handle clear entire chat (admin only)
+  const handleClearChat = async () => {
+    if (userRole !== 'admin') {
+      alert(lang === 'en' ? 'Only admins can clear the entire chat.' : 'Ni wasimamizi pekee wanaoweza kufuta mazungumzo yote.')
+      return
+    }
+
+    if (!window.confirm(lang === 'en' ? '⚠️ ADMIN: Are you sure you want to clear ALL chat messages? This action cannot be undone.' : '⚠️ ADMIN: Una uhakika unataka kufuta MZUNGUMZO WOTE? Hatua hii haiwezi kubatilishwa.')) {
+      return
+    }
+
+    try {
+      // Hard delete all messages
+      const { error: deleteError } = await supabase
+        .from('community_messages')
+        .delete()
+        .neq('id', '0')
 
       if (deleteError) {
         throw deleteError
@@ -249,12 +443,24 @@ export default function CommunityPage() {
       setMessages([])
       setFilteredMessages([])
 
-      // Show success message
-      alert(lang === 'en' ? 'Chat cleared successfully!' : 'Mzungumzo uliosafishwa kikamilifu!')
+      alert(lang === 'en' ? 'Chat cleared successfully!' : 'Mzungumzo umesafishwa kikamilifu!')
     } catch (err: any) {
       console.error('Failed to clear chat:', err)
       alert(lang === 'en' ? 'Failed to clear chat. Please try again.' : 'Hitilafu ya kufuta mzungumzo. Tafadhali jaribu tena.')
     }
+  }
+
+  // Start editing a message
+  const startEditing = (message: Message) => {
+    setEditingMessageId(message.id)
+    setEditingContent(message.content)
+    setActiveMenuId(null)
+  }
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingMessageId(null)
+    setEditingContent('')
   }
 
   const handleSignOut = async () => {
@@ -278,6 +484,58 @@ export default function CommunityPage() {
   }
 
   const t = translations[lang]
+
+  // Message Menu Component
+  const MessageMenu = ({ message, onClose }: { message: Message; onClose: () => void }) => {
+    const isOwner = message.user_id === user?.id
+    const isAdmin = userRole === 'admin'
+
+    if (!isOwner && !isAdmin) return null
+
+    return (
+      <div 
+        ref={menuRef}
+        className="absolute right-0 top-8 mt-1 w-48 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl z-50 overflow-hidden"
+      >
+        {isOwner && (
+          <>
+            <button
+              onClick={() => {
+                startEditing(message)
+                onClose()
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-2"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-emerald-400" />
+              {lang === 'en' ? 'Edit Message' : 'Hariri Ujumbe'}
+            </button>
+            <button
+              onClick={() => {
+                handleDeleteMessage(message.id)
+                onClose()
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-2"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              {lang === 'en' ? 'Delete Message' : 'Futa Ujumbe'}
+            </button>
+          </>
+        )}
+        {isAdmin && !isOwner && (
+          <button
+            onClick={() => {
+              handleHardDeleteMessage(message.id)
+              onClose()
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {lang === 'en' ? 'Admin: Delete Message' : 'Msimamizi: Futa Ujumbe'}
+          </button>
+        )}
+      </div>
+    )
+  }
 
   // Beautiful Lock View if not signed in
   if (!authLoading && !user) {
@@ -402,7 +660,9 @@ export default function CommunityPage() {
               </div>
               <div className="truncate text-xs">
                 <span className="font-extrabold text-white block truncate">{username}</span>
-                <span className="text-[10px] text-zinc-500 capitalize">{userRole === 'agrovet' ? 'Agrovet Expert' : 'Registered Farmer'}</span>
+                <span className="text-[10px] text-zinc-500 capitalize">
+                  {userRole === 'agrovet' ? 'Agrovet Expert' : userRole === 'admin' ? 'Administrator' : 'Registered Farmer'}
+                </span>
               </div>
             </div>
 
@@ -430,21 +690,23 @@ export default function CommunityPage() {
                  />
                </div>
 
-               {/* Clear Chat Button */}
-               <button 
-                 onClick={handleClearChat}
-                 disabled={chatLoading}
-                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold ${
-                   chatLoading ? 'opacity-50 cursor-not-allowed' : ''
-                 }`}
-               >
-                 {chatLoading ? (
-                   <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
-                 ) : (
-                   <Trash2 className="w-3.5 h-3.5 text-emerald-400" />
-                 )}
-                 <span>{lang === 'en' ? 'Clear Chat' : 'Okoa Mzungumzo'}</span>
-               </button>
+               {/* Clear Chat Button - Admin only */}
+               {userRole === 'admin' && (
+                 <button 
+                   onClick={handleClearChat}
+                   disabled={chatLoading}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-800/50 bg-red-950/20 text-red-400 hover:border-red-500/50 hover:text-red-300 transition-all text-xs font-semibold ${
+                     chatLoading ? 'opacity-50 cursor-not-allowed' : ''
+                   }`}
+                 >
+                   {chatLoading ? (
+                     <Loader2 className="w-3 h-3 animate-spin" />
+                   ) : (
+                     <Trash2 className="w-3.5 h-3.5" />
+                   )}
+                   <span>{lang === 'en' ? 'Clear All Chat' : 'Futa Mzungumzo Wote'}</span>
+                 </button>
+               )}
              </div>
 
             {/* Chat message board area */}
@@ -467,45 +729,106 @@ export default function CommunityPage() {
               {filteredMessages.map((m) => {
                 const isMe = m.user_id === user.id
                 const isAgro = m.role === 'agrovet'
+                const isAdmin = m.role === 'admin'
+                const isEditing = editingMessageId === m.id
+                const showMenu = activeMenuId === m.id
 
                 return (
-                  <div key={m.id} className={`flex gap-3.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div key={m.id} className={`flex gap-3.5 ${isMe ? 'justify-end' : 'justify-start'} relative group`}>
                     
                     {/* User profile avatar (if not me) */}
                     {!isMe && (
                       <div className={`h-8 w-8 rounded-xl border flex items-center justify-center shrink-0 mt-1 ${
+                        isAdmin ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
                         isAgro ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                       }`}>
-                        {isAgro ? <Store className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                        {isAdmin ? <ShieldCheck className="w-4 h-4" /> : isAgro ? <Store className="w-4 h-4" /> : <User className="w-4 h-4" />}
                       </div>
                     )}
 
-                    <div className="max-w-[75%] space-y-1">
+                    <div className="max-w-[75%] space-y-1 relative">
                       {/* Name header */}
                       <div className={`flex items-center gap-1.5 text-[10px] ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <span className="font-extrabold text-zinc-400">{m.username}</span>
                         <span className={`px-1.5 py-0.2 rounded text-[7px] uppercase font-bold border ${
-                          isAgro
-                            ? 'text-blue-400 bg-blue-400/5 border-blue-400/20'
-                            : 'text-emerald-400 bg-emerald-400/5 border-emerald-400/20'
+                          isAdmin ? 'text-purple-400 bg-purple-400/5 border-purple-400/20' :
+                          isAgro ? 'text-blue-400 bg-blue-400/5 border-blue-400/20' : 'text-emerald-400 bg-emerald-400/5 border-emerald-400/20'
                         }`}>
-                          {isAgro ? 'Agrovet' : 'Farmer'}
+                          {isAdmin ? 'Admin' : isAgro ? 'Agrovet' : 'Farmer'}
                         </span>
+                        {m.updated_at && m.updated_at !== m.created_at && (
+                          <span className="text-zinc-600 text-[8px] italic">
+                            ({lang === 'en' ? 'edited' : 'imehaririwa'})
+                          </span>
+                        )}
                         <span className="text-zinc-650 font-medium">
                           {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
-                      {/* Bubble */}
-                      <div className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-                        isMe
-                          ? 'bg-emerald-500 text-zinc-950 font-bold rounded-tr-none shadow-md shadow-emerald-950/15'
-                          : 'bg-zinc-900/60 text-zinc-200 rounded-tl-none border border-zinc-850/60'
-                      }`}>
-                        {m.content}
-                      </div>
-
+                      {/* Message bubble with edit mode */}
+                      {isEditing ? (
+                        <div className="flex gap-2 items-start">
+                          <input
+                            type="text"
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleEditMessage(m.id, editingContent)
+                              }
+                            }}
+                            className="flex-1 bg-zinc-800 border border-emerald-500/30 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleEditMessage(m.id, editingContent)}
+                            className="p-1.5 bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors"
+                          >
+                            <Check className="w-3.5 h-3.5 text-zinc-950" />
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            className="p-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 text-zinc-300" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`p-3.5 rounded-2xl text-xs leading-relaxed relative ${
+                          isMe
+                            ? 'bg-emerald-500 text-zinc-950 font-bold rounded-tr-none shadow-md shadow-emerald-950/15'
+                            : 'bg-zinc-900/60 text-zinc-200 rounded-tl-none border border-zinc-850/60'
+                        }`}>
+                          {m.content}
+                          
+                          {/* Three dots menu button - only for message owner or admin */}
+                          {(isMe || userRole === 'admin') && (
+                            <div className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => setActiveMenuId(showMenu ? null : m.id)}
+                                className="p-1 hover:bg-zinc-800 rounded-lg transition-colors"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5 text-zinc-400" />
+                              </button>
+                              {showMenu && (
+                                <MessageMenu message={m} onClose={() => setActiveMenuId(null)} />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Avatar for my messages (optional) */}
+                    {isMe && (
+                      <div className={`h-8 w-8 rounded-xl border flex items-center justify-center shrink-0 mt-1 ${
+                        isAdmin ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                        isAgro ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {isAdmin ? <ShieldCheck className="w-4 h-4" /> : isAgro ? <Store className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                      </div>
+                    )}
 
                   </div>
                 )
@@ -515,7 +838,7 @@ export default function CommunityPage() {
               {filteredMessages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-20 text-center text-zinc-600">
                   <AlertCircle className="w-8 h-8 mb-2 text-zinc-700" />
-                  <p className="text-xs">{lang === 'en' ? 'No messages matches search or board empty.' : 'Hakuna mazungumzo yoyote yaliyopatikana.'}</p>
+                  <p className="text-xs">{lang === 'en' ? 'No messages match search or board empty.' : 'Hakuna mazungumzo yoyote yaliyopatikana.'}</p>
                 </div>
               )}
 
