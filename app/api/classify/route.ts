@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.warn("CRITICAL: GEMINI_API_KEY is missing. Ensure it is defined in .env.local");
+}
+const genAI = new GoogleGenerativeAI(apiKey || "");
 
 const fallbackAnalysis = {
   farmerSummary: "- Disease signs are visible and need quick action.\n- Remove badly affected leaves first.\n- Reduce excess moisture around the crop.\n- Apply a suitable protectant spray and keep monitoring daily.",
@@ -34,9 +38,13 @@ export async function POST(req: NextRequest) {
     // 1. Multimodal Vision Call to Gemini 2.5 Flash
     let responseData: any;
     try {
-      const model = genAI.getGenerativeModel({ 
+      const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
-        systemInstruction: "You are FarmGuard AI's expert plant pathologist and digital agronomist. Analyze the uploaded leaf image. First, verify if the image is actually a plant/crop leaf. If the image is not a plant leaf or is completely unrecognizable, set the classification label to 'Invalid___Not_A_Plant' and score to 0.0. Otherwise, diagnose the plant type and its disease/condition. Your output must be a single, clean JSON object. Do not wrap the JSON in markdown fences (like ```json). Provide robust scientific detail, but always include a short, simple, farmer-friendly summary."
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1, // Lower temperature reduces "random" hallucinations
+        },
+        systemInstruction: "You are FarmGuard AI's expert plant pathologist. Your task is to analyze crop leaf images. FIRST: Determine if the image is a clear photo of a plant leaf. If the image is a person, a room, an animal, or anything that is NOT a plant leaf, you MUST return exactly: {\"classification\": [{\"label\": \"Invalid___Not_A_Plant\", \"score\": 0.0}], \"analysis\": null}. If it IS a plant leaf, diagnose the condition. Output MUST be valid JSON only."
       });
 
       const imagePart = fileToGenerativePart(buffer, file.type);
@@ -62,37 +70,27 @@ export async function POST(req: NextRequest) {
       - Separate the Plant name and the Condition name using exactly three underscores ('___'). E.g., 'Maize___Common_rust', 'Tomato___Late_blight', 'Tomato___healthy', 'Potato___Early_blight'.
       - Replace any spaces in the plant name or disease name with single underscores.
       - If it is healthy, use 'healthy' as the condition name (e.g., 'Maize___healthy').
-      - If the image is not a crop leaf or plant leaf, set the label to 'Invalid___Not_A_Plant' and the score to 0.0.
+      - CRITICAL: If the image is not a plant, set label to 'Invalid___Not_A_Plant' and score to 0.0.
       - Ensure the score is a float value between 0.0 and 1.0 representing your confidence.`;
 
       const geminiResult = await model.generateContent([prompt, imagePart]);
       const text = geminiResult.response.text();
-      
+
       // Clean up markdown fences if Gemini still wrapped them
-      const jsonString = text.replace(/```json|```/g, "").trim();
+      const jsonString = text.replace(/```json/g, "").replace(/```/g, "").trim();
       responseData = JSON.parse(jsonString);
 
     } catch (geminiError) {
-      console.error("Gemini Vision processing failed:", geminiError);
-      
-      // Secondary fallback in case of API failure (uses mock structure matching tomato fallback)
-      responseData = {
-        classification: [
-          {
-            label: "Tomato___Late_blight",
-            score: 0.96
-          }
-        ],
-        analysis: fallbackAnalysis
-      };
+      console.error("Gemini API Error:", geminiError);
+      throw new Error(`AI Analysis failed: ${geminiError instanceof Error ? geminiError.message : 'Unknown error'}`);
     }
 
     // 2. Guardrail Check: Check top score and validity of leaf
     const topResult = responseData?.classification?.[0];
-    if (!topResult || topResult.score < 0.50 || topResult.label === "Invalid___Not_A_Plant") {
-      return NextResponse.json({ 
-        error: "Not a plant", 
-        message: "This image does not appear to be a valid crop leaf. Please upload a clear photo of a plant leaf." 
+    if (!topResult || topResult.score < 0.65 || topResult.label === "Invalid___Not_A_Plant") {
+      return NextResponse.json({
+        error: "Not a plant",
+        message: "Our AI couldn't identify a plant leaf in this photo. Please ensure the leaf is centered and well-lit."
       }, { status: 422 });
     }
 
@@ -104,15 +102,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Classification endpoint error:', error);
-    return NextResponse.json({
-      classification: [
-        {
-          label: "Tomato___Late_blight",
-          score: 0.96
-        }
-      ],
-      analysis: fallbackAnalysis,
-      error: error.message || 'Failed to classify image'
-    }, { status: 200 });
+    return NextResponse.json(
+      { error: "Classification failed", message: error.message || 'An unexpected error occurred during analysis.' },
+      { status: 500 }
+    );
   }
 }

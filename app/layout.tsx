@@ -1,10 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  viewport: "width=device-width, initial-scale=1",
-  // other metadata fields
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
+export const metadata: Metadata = {
+  // other metadata fields
 };
 
 import ChatBot from "@/components/ChatBot";
