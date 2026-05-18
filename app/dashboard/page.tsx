@@ -258,85 +258,107 @@ export default function Dashboard() {
     }
   }, [activeTab, mapLoaded])
 
-  // Construct Leaflet Satellite Map with color-coded scan pins
-  useEffect(() => {
-    if (activeTab === 'map' && mapLoaded && typeof window !== 'undefined' && (window as any).L) {
-      const L = (window as any).L
-
-      // Fallback farm center (Nairobi coordinates)
-      let lat = -1.2921
-      let lng = 36.8219
-
-      const initMap = (centerLat: number, centerLng: number) => {
-        if (!mapContainerRef.current) return
-
-        if (mapRef.current) {
-          mapRef.current.remove()
-        }
-
-        const map = L.map(mapContainerRef.current).setView([centerLat, centerLng], 17)
-        mapRef.current = map
-
-        // High-resolution ESRI World Satellite tile layer
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-          attribution: 'Tiles &copy; Esri &mdash; Satellite Field Imagery'
-        }).addTo(map)
-
-        // Plot colored pins representing crop diagnostic records
-        scans.forEach((scan: any, idx: number) => {
-          const isCritical = scan.health_status === 'Critical'
-          const isModerate = scan.health_status === 'Moderate'
-
-          const color = isCritical ? '#f87171' : isModerate ? '#facc15' : '#34d399'
-
-          // Generate realistic row-offsets centered on the farmer's GPS coordinates
-          const offsetLat = centerLat + (Math.sin(idx * 0.9) * 0.0006)
-          const offsetLng = centerLng + (Math.cos(idx * 0.9) * 0.0006)
-
-          const marker = L.circleMarker([offsetLat, offsetLng], {
-            radius: 10,
-            fillColor: color,
-            color: '#18181b',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9
-          }).addTo(map)
-
-          // Premium custom popup styling
-          const popupContent = `
-            <div style="font-family: sans-serif; padding: 4px; width: 170px; color: #18181b;">
-              <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px; color: #111827;">${scan.plant_name}</h4>
-              <p style="margin: 0 0 6px 0; font-size: 11px; color: #4b5563;">Spotted: <b>${scan.disease}</b></p>
-              <div style="margin-bottom: 8px;">
-                <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: ${color}20; color: ${color}; border: 1px solid ${color}40;">
-                  ${scan.health_status}
-                </span>
-              </div>
-              <a href="/scan/${scan.id}" style="display: block; text-align: center; text-decoration: none; padding: 6px; background: #10b981; color: #fff; border-radius: 6px; font-size: 11px; font-weight: bold;">
-                Open Report
-              </a>
-            </div>
-          `
-          marker.bindPopup(popupContent)
-        })
+  // Defer map invalidation to after Framer Motion animation completes
+  const invalidateMapSize = useCallback(() => {
+      if (mapRef.current && typeof (mapRef.current as any).invalidateSize === 'function') {
+        // Double RAF to ensure Framer Motion transition is fully painted
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          (mapRef.current as any).invalidateSize()
+        }))
       }
+    }, [])
 
-      // Fetch Geolocation
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            initMap(pos.coords.latitude, pos.coords.longitude)
-          },
-          () => {
+    // Construct Leaflet Satellite Map with color-coded scan pins
+    useEffect(() => {
+      if (activeTab === 'map' && mapLoaded && typeof window !== 'undefined' && (window as any).L) {
+        // Wait a frame so AnimatePresence has revealed the map container
+        const timer = setTimeout(() => {
+          const L = (window as any).L
+
+          // Fallback farm center (Nairobi coordinates)
+          let lat = -1.2921
+          let lng = 36.8219
+
+          const initMap = (centerLat: number, centerLng: number) => {
+            if (!mapContainerRef.current) return
+
+            if (mapRef.current) {
+              mapRef.current.remove()
+            }
+
+            const map = L.map(mapContainerRef.current, {
+              zoomControl: true,
+              scrollWheelZoom: true
+            }).setView([centerLat, centerLng], 17)
+            mapRef.current = map
+
+            // High-resolution ESRI World Satellite tile layer
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+              attribution: 'Tiles &copy; Esri &mdash; Satellite Field Imagery'
+            }).addTo(map)
+
+            // Plot colored pins representing crop diagnostic records
+            scans.forEach((scan: any, idx: number) => {
+              const isCritical = scan.health_status === 'Critical'
+              const isModerate = scan.health_status === 'Moderate'
+
+              const color = isCritical ? '#f87171' : isModerate ? '#facc15' : '#34d399'
+
+              // Generate realistic row-offsets centered on the farmer's GPS coordinates
+              const offsetLat = centerLat + (Math.sin(idx * 0.9) * 0.0006)
+              const offsetLng = centerLng + (Math.cos(idx * 0.9) * 0.0006)
+
+              const marker = L.circleMarker([offsetLat, offsetLng], {
+                radius: 10,
+                fillColor: color,
+                color: '#18181b',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9
+              }).addTo(map)
+
+              // Premium custom popup styling
+              const popupContent = `
+                <div style="font-family: sans-serif; padding: 4px; width: 170px; color: #18181b;">
+                  <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px; color: #111827;">${scan.plant_name}</h4>
+                  <p style="margin: 0 0 6px 0; font-size: 11px; color: #4b5563;">Spotted: <b>${scan.disease}</b></p>
+                  <div style="margin-bottom: 8px;">
+                    <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: ${color}20; color: ${color}; border: 1px solid ${color}40;">
+                      ${scan.health_status}
+                    </span>
+                  </div>
+                  <a href="/scan/${scan.id}" style="display: block; text-align: center; text-decoration: none; padding: 6px; background: #10b981; color: #fff; border-radius: 6px; font-size: 11px; font-weight: bold;">
+                    Open Report
+                  </a>
+                </div>
+              `
+              marker.bindPopup(popupContent)
+            })
+
+            // Invalidate size AFTER tiles load to ensure correct dimensions
+            setTimeout(() => map.invalidateSize(), 200)
+          }
+
+          // Fetch Geolocation — on mobile the permission dialog will appear here
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                // After user grants/denies, the browser re-renders; init on next frame
+                requestAnimationFrame(() => initMap(pos.coords.latitude, pos.coords.longitude))
+              },
+              () => {
+                requestAnimationFrame(() => initMap(lat, lng))
+              },
+              { timeout: 10000 }
+            )
+          } else {
             initMap(lat, lng)
-          },
-          { timeout: 5000 }
-        )
-      } else {
-        initMap(lat, lng)
+          }
+        }, 50) // Short delay lets Framer Motion reveal the container before Leaflet measures it
+
+        return () => clearTimeout(timer)
       }
-    }
-  }, [activeTab, mapLoaded, scans])
+    }, [activeTab, mapLoaded, scans])
 
   // Initialize and persistent local tasks for unique plants
   useEffect(() => {
@@ -1406,6 +1428,7 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
+                onAnimationComplete={invalidateMapSize}
                 className="space-y-4 animate-fade-in"
               >
                 <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">

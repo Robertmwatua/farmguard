@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ArrowLeft, 
   Globe, 
   Sun, 
   Moon, 
@@ -24,6 +23,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
+import HamburgerMenuNav from '@/components/HamburgerMenuNav'
 
 interface Message {
   id: string
@@ -229,33 +229,38 @@ export default function CommunityPage() {
      }
    }
 
-   const handleClearChat = async () => {
-     if (!window.confirm(lang === 'en' ? 'Are you sure you want to clear all chat messages? This action cannot be undone.' : 'Unakuhisi kwamba unataka kufuta mazungumzo yote? Huduma hii huwa hawezi kurudishwa.')) {
-       return
-     }
+  const handleClearChat = async () => {
+    if (!window.confirm(lang === 'en' ? 'Are you sure you want to clear all chat messages? This action cannot be undone.' : 'Unakuhisi kwamba unataka kufuta mazungumzo yote? Huduma hii huwa hawezi kurudishwa.')) {
+      return
+    }
 
-     try {
-       // Delete all messages from the community_messages table
-       const { error: deleteError } = await supabase
-         .from('community_messages')
-         .delete()
-         .neq('id', 0) // Delete all rows
+    try {
+      // Delete all messages from the community_messages table
+      const { error: deleteError } = await supabase
+        .from('community_messages')
+        .delete()
+        .neq('id', 0) // Delete all rows
 
-       if (deleteError) {
-         throw deleteError
-       }
+      if (deleteError) {
+        throw deleteError
+      }
 
-       // Clear local state
-       setMessages([])
-       setFilteredMessages([])
+      // Clear local state
+      setMessages([])
+      setFilteredMessages([])
 
-       // Show success message
-       alert(lang === 'en' ? 'Chat cleared successfully!' : 'Mzungumzo uliosafishwa kikamilifu!')
-     } catch (err: any) {
-       console.error('Failed to clear chat:', err)
-       alert(lang === 'en' ? 'Failed to clear chat. Please try again.' : 'Hitilafu ya kufuta mzungumzo. Tafadhali jaribu tena.')
-     }
-   }
+      // Show success message
+      alert(lang === 'en' ? 'Chat cleared successfully!' : 'Mzungumzo uliosafishwa kikamilifu!')
+    } catch (err: any) {
+      console.error('Failed to clear chat:', err)
+      alert(lang === 'en' ? 'Failed to clear chat. Please try again.' : 'Hitilafu ya kufuta mzungumzo. Tafadhali jaribu tena.')
+    }
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.replace("/")
+  }
 
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'sw' : 'en'
@@ -313,59 +318,19 @@ export default function CommunityPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-10 flex flex-col justify-between">
       
       {/* Navigation */}
-      <nav className="border-b border-zinc-850 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> {t.backToDashboard}
-            </Link>
-            <div className="w-px h-6 bg-zinc-800" />
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
-              </div>
-              <span className="font-bold text-white tracking-wide text-sm">{lang === 'en' ? 'Community Hub' : 'Ukurasa wa Jamii'}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Realtime Status Pill */}
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold tracking-wide uppercase ${
-              realtimeConnected 
-                ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' 
-                : 'border-amber-500/20 bg-amber-500/5 text-amber-400 animate-pulse'
-            }`}>
-              <Wifi className="w-3 h-3 animate-pulse" />
-              {realtimeConnected ? (lang === 'en' ? 'Live Sync' : 'Mawasiliano Safi') : (lang === 'en' ? 'Connecting...' : 'Kujiunga...')}
-            </span>
-
-            <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Academy' : 'Chuo'}
-            </Link>
-
-            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Calendar' : 'Ratiba'}
-            </Link>
-
-            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Diary' : 'Shajara'}
-            </Link>
-
-            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-            </Link>
-
-            <button onClick={toggleLang} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold">
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-            </button>
-
-            <button onClick={toggleTheme} className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all">
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <HamburgerMenuNav
+        lang={lang}
+        theme={theme}
+        onToggleLang={toggleLang}
+        onToggleTheme={toggleTheme}
+        onSignOut={handleSignOut}
+        backHref="/dashboard"
+        backLabel={t.backToDashboard}
+        pageTitle={lang === 'en' ? 'Community Hub' : 'Ukurasa wa Jamii'}
+        pageTitleIcon={<MessageSquare className="w-4 h-4 text-emerald-400" />}
+        deferredPrompt={null}
+        showRealtimeStatus={{ connected: realtimeConnected, connectedLabel: lang === 'en' ? 'Live Sync' : 'Mawasiliano Safi', connectingLabel: lang === 'en' ? 'Connecting...' : 'Kujiunga...' }}
+      />
 
       {authLoading ? (
         <div className="flex-1 flex items-center justify-center">

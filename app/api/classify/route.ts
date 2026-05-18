@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// 1. Fail early if the API key is missing from .env.local
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-  console.warn("CRITICAL: GEMINI_API_KEY is missing. Ensure it is defined in .env.local");
+  console.error("CRITICAL ERROR: GEMINI_API_KEY is completely missing from your environment variables!");
 }
-const genAI = new GoogleGenerativeAI(apiKey || "");
 
-const fallbackAnalysis = {
-  farmerSummary: "- Disease signs are visible and need quick action.\n- Remove badly affected leaves first.\n- Reduce excess moisture around the crop.\n- Apply a suitable protectant spray and keep monitoring daily.",
-  diagnosticOverview: "The crop shows distinct lesion patterns consistent with initial fungal incubation. Immediate moisture containment is highly recommended.",
-  immediateProtocol: "- Prune heavily affected leaves to halt systemic distribution.\n- Limit localized top-soil irrigation cycles.\n- Apply organic copper-based protectant spray.",
-  longTermRecommendations: "- Enact an immediate crop rotation program next cycle.\n- Transition to disease-resistant seed strains.\n- Enhance general drainage contours."
-};
+// Only initialize if we have a key, otherwise let it fail gracefully inside the route handler
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 function fileToGenerativePart(buffer: Buffer, mimeType: string) {
   return {
@@ -25,6 +21,14 @@ function fileToGenerativePart(buffer: Buffer, mimeType: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if the SDK initialization failed due to environment issues
+    if (!genAI) {
+      return NextResponse.json({ 
+        error: "Configuration Error", 
+        message: "Gemini API key is missing on the server. Please check your .env.local file." 
+      }, { status: 500 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('image') as File;
 
@@ -35,22 +39,21 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 1. Multimodal Vision Call to Gemini 2.5 Flash
     let responseData: any;
     try {
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.1, // Lower temperature reduces "random" hallucinations
+          temperature: 0.1, 
         },
-        systemInstruction: "You are FarmGuard AI's expert plant pathologist. Your task is to analyze crop leaf images. FIRST: Determine if the image is a clear photo of a plant leaf. If the image is a person, a room, an animal, or anything that is NOT a plant leaf, you MUST return exactly: {\"classification\": [{\"label\": \"Invalid___Not_A_Plant\", \"score\": 0.0}], \"analysis\": null}. If it IS a plant leaf, diagnose the condition. Output MUST be valid JSON only."
+        systemInstruction: "You are FarmGuard AI's expert plant pathologist. Your task is to analyze crop leaf images. FIRST: Determine if the image is a clear photo of a plant leaf. If the image is a person, a room, an animal, or anything that is NOT a plant leaf, you MUST return exactly: {\"classification\": [{\"label\": \"Invalid___Not_A_Plant\", \"score\": 0.0}], \"analysis\": null}. If it IS a plant leaf, diagnose the condition. Output MUST be valid JSON only matching the requested schema."
       });
 
       const imagePart = fileToGenerativePart(buffer, file.type);
       const prompt = `Perform complete diagnostic classification and analysis on this leaf image. 
       
-      You MUST return a JSON object containing exactly this schema structure (with no surrounding markdown code blocks):
+      You MUST return a JSON object containing exactly this schema structure:
       {
         "classification": [
           {
@@ -76,12 +79,12 @@ export async function POST(req: NextRequest) {
       const geminiResult = await model.generateContent([prompt, imagePart]);
       const text = geminiResult.response.text();
 
-      // Clean up markdown fences if Gemini still wrapped them
-      const jsonString = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      // Clean up markdown fences safely using regex
+      const jsonString = text.replace(/^```json\s*/i, "").replace(/\s*```$/g, "").trim();
       responseData = JSON.parse(jsonString);
 
     } catch (geminiError) {
-      console.error("Gemini API Error:", geminiError);
+      console.error("Gemini API Error details:", geminiError);
       throw new Error(`AI Analysis failed: ${geminiError instanceof Error ? geminiError.message : 'Unknown error'}`);
     }
 

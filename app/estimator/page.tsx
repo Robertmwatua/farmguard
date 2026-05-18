@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { 
-  ArrowLeft, 
   Globe, 
   Sun, 
   Moon, 
@@ -17,7 +16,9 @@ import {
   TrendingDown,
   Info
 } from 'lucide-react'
+import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
+import HamburgerMenuNav from '@/components/HamburgerMenuNav'
 
 interface CropPreset {
   name: string
@@ -199,39 +200,27 @@ export default function EstimatorPage() {
 
   const agrovetList = getAgrovetPrices()
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.replace("/")
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-10 flex flex-col justify-between">
       
       {/* Navigation */}
-      <nav className="border-b border-zinc-850 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> {t.backToDashboard}
-            </Link>
-            <div className="w-px h-6 bg-zinc-800" />
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
-                <Calculator className="w-4 h-4 text-emerald-400" />
-              </div>
-              <span className="font-bold text-white tracking-wide text-sm">
-                {lang === 'en' ? 'Spacing Estimator & Agrovet Prices' : 'Kikokotoo cha Nafasi na Bei za Pembejeo'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button onClick={toggleLang} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold">
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-            </button>
-
-            <button onClick={toggleTheme} className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all">
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <HamburgerMenuNav
+        lang={lang}
+        theme={theme}
+        onToggleLang={toggleLang}
+        onToggleTheme={toggleTheme}
+        onSignOut={handleSignOut}
+        backHref="/dashboard"
+        backLabel={t.backToDashboard}
+        pageTitle={lang === 'en' ? 'Spacing Estimator & Agrovet Prices' : 'Kikokotoo cha Nafasi na Bei za Pembejeo'}
+        pageTitleIcon={<Calculator className="w-4 h-4 text-emerald-400" />}
+        deferredPrompt={null}
+      />
 
       {/* Main Content Workspace */}
       <main className="max-w-7xl mx-auto w-full px-6 py-6 flex-1 grid lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch overflow-hidden">

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations } from '@/lib/translations'
+import HamburgerMenuNav from '@/components/HamburgerMenuNav'
 
 // Local teachings curriculum data
 const curriculumData = {
@@ -253,6 +254,7 @@ const quizQuestions = {
 export default function TeachingsPage() {
   const [lang, setLang] = useState<'en' | 'sw'>('en')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
   // Quiz states
@@ -282,12 +284,32 @@ export default function TeachingsPage() {
     setTheme(finalTheme)
     document.documentElement.classList.toggle('light', finalTheme === 'light')
 
+    // Capture PWA Install Prompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
     // Initial greeting in teaching bot
     const welcome = savedLang === 'sw'
       ? "Habari! Mimi ni Mwalimu wako wa AI wa Masomo ya Kilimo. Uliza maswali yoyote kuhusu mimea, kemia ya udongo, kufuga, au umwagiliaji. Nitakujibu kwa kilimo TU! 🌱"
       : "Hello! I am your AI Agronomy Teacher. Ask me any questions about soil chemistry, composting, precision irrigation, crop spacing, or livestock rearing. I am trained to discuss farming ONLY! 🌱"
     setChatMessages([{ role: 'bot', content: welcome }])
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
   }, [])
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null)
+    }
+  }
 
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'sw' : 'en'
@@ -475,55 +497,18 @@ export default function TeachingsPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-24 transition-colors duration-300">
 
       {/* Navigation */}
-      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">{t.backToDashboard}</span>
-            </Link>
-            <div className="w-px h-6 bg-zinc-800" />
-            <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-              <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
-                <BookOpen className="w-4 h-4 text-emerald-400" />
-              </div>
-              <span className="font-bold text-white tracking-wide text-sm">{t.brand}</span>
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link href="/community" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Community' : 'Jamii'}
-            </Link>
-
-            <Link href="/calendar" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Calendar' : 'Ratiba'}
-            </Link>
-
-            <Link href="/notes" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Diary' : 'Shajara'}
-            </Link>
-
-            <Link href="/estimator" className="hidden lg:inline text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-            </Link>
-
-            <button
-              onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
-            >
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-            </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <HamburgerMenuNav
+        lang={lang}
+        theme={theme}
+        onToggleLang={toggleLang}
+        onToggleTheme={toggleTheme}
+        backHref="/dashboard"
+        backLabel={t.backToDashboard}
+        pageTitle={lang === 'en' ? 'FarmGuard Academy' : 'Chuo cha FarmGuard'}
+        pageTitleIcon={<BookOpen className="w-4 h-4 text-emerald-400" />}
+        deferredPrompt={deferredPrompt}
+        onInstallApp={handleInstallApp}
+      />
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-10">

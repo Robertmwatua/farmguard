@@ -1,11 +1,11 @@
 'use client'
 
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ShieldCheck, 
-  ArrowLeft, 
   Activity, 
   Droplet, 
   Sprout, 
@@ -24,11 +24,11 @@ import {
   Volume2,
   VolumeX
 } from 'lucide-react'
-import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import WeatherWidget from '@/components/WeatherWidget'
 import NearbyAgrovets from '@/components/NearbyAgrovets'
 import { translations } from '@/lib/translations'
+import HamburgerMenuNav from '@/components/HamburgerMenuNav'
 
 function formatBulletText(value?: string | null) {
   if (!value) return []
@@ -456,67 +456,18 @@ export default function ScanDetails() {
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans pb-24 transition-colors duration-300">
       
       {/* Navigation */}
-      <nav className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> {t.backToDashboard}
-            </Link>
-            <div className="w-px h-6 bg-zinc-800" />
-            <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-              <div className="h-6 w-6 rounded bg-emerald-500/10 flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              </div>
-              <span className="font-bold text-white tracking-wide text-sm">{t.brand}</span>
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link href="/teachings" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Academy' : 'Chuo'}
-            </Link>
-
-            <Link href="/community" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Community' : 'Jamii'}
-            </Link>
-
-            <Link href="/calendar" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Calendar' : 'Ratiba'}
-            </Link>
-
-            <Link href="/notes" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Diary' : 'Shajara'}
-            </Link>
-
-            <Link href="/estimator" className="text-sm font-semibold text-zinc-400 hover:text-emerald-300 transition-colors mr-2">
-              {lang === 'en' ? 'Estimator' : 'Kikokotoo'}
-            </Link>
-
-            <button 
-              onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all text-xs font-semibold"
-            >
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              {lang === 'en' ? '🇬🇧 EN' : '🇰🇪 SW'}
-            </button>
-
-            <button 
-              onClick={toggleTheme}
-              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/30 hover:text-white transition-all"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-emerald-400" />}
-            </button>
-
-            <button 
-              onClick={handleSignOut}
-              className="p-2 rounded-lg border border-zinc-800 hover:border-red-500/30 hover:text-red-400 transition-all flex items-center gap-2"
-              title={t.signOut}
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <HamburgerMenuNav
+        lang={lang}
+        theme={theme}
+        onToggleLang={toggleLang}
+        onToggleTheme={toggleTheme}
+        onSignOut={handleSignOut}
+        backHref="/dashboard"
+        backLabel={t.backToDashboard}
+        pageTitle={data ? `${data.plant_name} ${t.intelligenceReport}` : 'Scan Report'}
+        pageTitleIcon={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
+        deferredPrompt={null}
+      />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         
