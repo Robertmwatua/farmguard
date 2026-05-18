@@ -159,15 +159,15 @@ export default function ChatBot() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100]">
+    <div className="fixed bottom-4 right-4 left-4 z-[100] md:bottom-6 md:right-6 md:left-auto">
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="mb-4 w-[350px] md:w-[400px] h-[500px] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-colors duration-300"
-          >
+             <motion.div
+             initial={{ opacity: 0, y: 20, scale: 0.95 }}
+             animate={{ opacity: 1, y: 0, scale: 1 }}
+             exit={{ opacity: 0, y: 20, scale: 0.95 }}
+             className="mb-4 w-full max-w-[calc(100vw-32px)] md:w-[400px] max-h-[80vh] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-colors duration-300"
+           >
             {/* Header */}
             <div className="p-4 bg-emerald-500 flex items-center justify-between shadow-lg">
               <div className="flex items-center gap-3">
@@ -264,14 +264,14 @@ export default function ChatBot() {
         )}
       </AnimatePresence>
 
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all hover:scale-110 active:scale-95 ${
-          isOpen ? 'bg-zinc-800 text-white' : 'bg-emerald-500 text-zinc-950 font-bold'
-        }`}
-      >
-        {isOpen ? <Minimize2 className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
-      </button>
+       <button
+         onClick={() => setIsOpen(!isOpen)}
+         className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center shadow-2xl transition-all hover:scale-110 active:scale-95 ${
+           isOpen ? 'bg-zinc-800 text-white' : 'bg-emerald-500 text-zinc-950 font-bold'
+         }`}
+       >
+         {isOpen ? <Minimize2 className="w-5 h-5 md:w-6 md:h-6" /> : <MessageSquare className="w-5 h-5 md:w-6 md:h-6" />}
+       </button>
     </div>
   )
 }
